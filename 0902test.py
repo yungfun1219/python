@@ -56,7 +56,7 @@ result.add_trace(
 )
 
 result.update_layout(
-    title = '2474可成',
+    title = '2330台積電',
     hovermode = 'x unified', #滑鼠停在圖上的時候會有資訊卡
     #xaxis_rangeslider_visible = False, #x軸座標的小圖，可以用來滑動上面的圖
 
