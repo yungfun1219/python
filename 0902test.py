@@ -17,7 +17,7 @@ import plotly.graph_objects as g
 
 #上市股: '股票代碼.tw'
 #上櫃股: '股票代碼.two'
-stock = y.download('2330.tw', period='1d', interval='1m')
+stock = y.download('2449.tw', period='1d', interval='1m')
 
 print(stock)
 
