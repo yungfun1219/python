@@ -11,7 +11,7 @@ data = requests.get(url).json()
 df = pd.DataFrame(data["data"], columns=data["fields"])
 
 # 建立資料庫連接
-db_path = r"D:\Python_repo\python\Stock_day_data\stock_SQLite.db"
+db_path = r"D:\Python_repo\myDb.db"
 conn = sqlite3.connect(db_path)
 #
 try:
