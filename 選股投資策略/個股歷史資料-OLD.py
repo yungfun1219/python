@@ -17,7 +17,11 @@ symboldict = {
     '3008':'大立光',
 }
 
-def transform_date(date): # 民國轉西元
+current_dir = os.path.dirname(os.path.abspath(__file__))+"\\"
+print(current_dir)
+
+ # 民國年轉西元年
+def transform_date(date):
     Y, m, d = date.split('/')
     return str(int(Y) + 1911) + '/' + m + '/' + d
 
@@ -46,22 +50,20 @@ def get_data(begin, stocks):
         each[0] = transform_date(each[0])
 
     # 轉成 pandas 的 DataFrame
-    df = pd.DataFrame(datalist[1:], columns=datalist[0])
+    df = pd.DataFrame(datalist[1:], columns=datalist[:1])
     df.columns = datalist[0]
 
     print('{} {} 資料蒐集成功!!!'.format(stocks, symboldict[stocks], begin))
     # 讓 call 函數取得運算完的資料
     return df
 
-get_data('2021/01/01', '2330')
-
 # 輸出一個份肥的 DataFrame 表格與其股票代碼
 def data_to_csv(input_dataframe, stocks):
     # 確認檔案是否存在，如果存在就往下執行
-    if os.path.isfile('stock_data/{}{}.csv'.format(stocks, symboldict[stocks])):
+    if os.path.isfile(current_dir + 'stock_data_{}{}.csv'.format(stocks, symboldict[stocks])):
         # 用異常處理讀取檔案，檢查此資料是否有問題
         try:
-            cu_data = pd.read_csv('stock_data/{}{}.csv'.format(stocks, symboldict[stocks]))
+            cu_data = pd.read_csv( current_dir + 'stock_data_{}{}.csv'.format(stocks, symboldict[stocks]))
             
             # 檢查資料是否有重複
             if input_dataframe['日期'][0] in list(cu_data['日期']):
@@ -70,7 +72,7 @@ def data_to_csv(input_dataframe, stocks):
                 time.sleep(1)
             else:
                 print('資料檢查結果：無重複資料...寫入中...')
-                input_dataframe.to_csv('stock_data/{}{}.csv'.format(stocks, symboldict[stocks]), mode='a', header=False)
+                input_dataframe.to_csv(current_dir + 'stock_data_{}{}.csv'.format(stocks, symboldict[stocks]), mode='a', header=False)
                 print('寫入完成!')
                 time.sleep(5)
                 
@@ -82,7 +84,7 @@ def data_to_csv(input_dataframe, stocks):
     else:
         print('建立新資料...')
         # 寫入 csv。寫入前記得先創建「stock_data」的資料夾
-        input_dataframe.to_csv('stock_data/{}{}.csv'.format(stocks, symboldict[stocks]), mode='w')
+        input_dataframe.to_csv(current_dir + 'stock_data_{}{}.csv'.format(stocks, symboldict[stocks]), mode='w')
         print('寫入完成！')
         time.sleep(5)
 
@@ -150,3 +152,8 @@ for sn in code:
         except:
             # 爬到最後可能會多爬一個月的資料，所以 pass 即可
             pass
+
+print(current_dir + 'stock_data_{}{}.csv'.format(sn, symboldict[sn]) + ' 資料蒐集完畢!!!')
+
+get_data('2025/09/05', '2330')  # 2330 = 台積電
+data_to_csv(df, '2330')
