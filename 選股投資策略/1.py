@@ -1,76 +1,55 @@
-import pandas as pd
-import numpy as np # 建議匯入以備不時之需，但此處非必需
+from datetime import date
+from dateutil.relativedelta import relativedelta
 
-# 必須先定義這些參數，否則程式會因為變數未定義而停止
-file_path = r"D:\GitHub-Repo\python\選股投資策略\exchange_list.csv" # **請修改為你的檔案路徑！**
-code_col = "有價證券代號"         # **請修改為你檔案中實際的代號欄位名稱！**
-target_code = "2330"         # **請修改為你要查詢的代號！**
-date_col = "上市日"          # **請修改為你檔案中實際的日期欄位名稱！**
+start_date = "2010/01/01"
 
-
-def get_listing_date(file_path, code_col, target_code, date_col):
-    """
-    從 CSV 檔案中查找特定證券代號的上市日期。
-    """
-    df = None  # 初始化 df，以防在 KeyError 中被引用時還未定義
-    try:
-        # 1. 讀取 CSV 檔案
-        # 建議加入 encoding='utf-8' 以避免中文亂碼問題
-        df = pd.read_csv(file_path, encoding='utf-8')
+        # 1. 設定開始和結束日期
+        # 將字串轉換為 datetime.date 物件
+year, month, day = map(int, start_date.split('/'))
+current_date = date(year, month, day)
         
-        # 2. 數據清洗：將代號欄位轉為字串並移除前後空白，確保查找成功
-        # 判斷欄位是否存在，如果不存在會自動跳到 KeyError
-        df[code_col] = df[code_col].astype(str).str.strip() 
+        # 取得今天的日期
+today = date.today()
 
-        # 3. 篩選出目標代號的資料
-        target_code_str = str(target_code).strip() # 確保查找的目標也是字串並移除空白
-        # 使用布林索引 (Boolean Indexing) 進行查找
-        target_data = df[df[code_col] == target_code_str]
-        
-        if target_data.empty:
-            print(f"【錯誤】在檔案中找不到證券代號 '{target_code_str}' 的資料。")
-            print(f"請檢查檔案中實際使用的代號，或欄位名稱 '{code_col}' 是否正確。")
-            # 輔助提示：顯示檔案中的所有欄位名稱
-            print(f"檔案中的所有欄位名稱為：{df.columns.tolist()}")
-            return None
+print(start_date)
+print(current_date.strftime('%Y/%m/%d'))
+print(today.strftime('%Y/%m/%d'))
 
-        # 4. 取得上市日期
-        # 由於只有一筆資料，直接取該欄位的第一個值
-        listing_date = target_data[date_col].iloc[0]
-        
-        print(f"\n【查詢結果】")
-        print(f"證券代號 {target_code_str} 的上市日為: {listing_date}")
-        print("-" * 30)
-        
-        return listing_date
-
-    except FileNotFoundError:
-        print(f"【錯誤】找不到檔案路徑：{file_path}")
-    except KeyError as e:
-        print(f"【錯誤】指定的欄位名稱錯誤。找不到欄位：{e}")
-        # 輔助提示：如果 df 已經被定義，則顯示欄位名稱
-        if df is not None:
-             print(f"檔案中的所有欄位名稱為：{df.columns.tolist()}")
-        else:
-             print("由於讀取檔案失敗，無法顯示欄位名稱。")
-    except Exception as e:
-        print(f"發生未知錯誤：{e}")
+   
+print(f"【開始日期】: {current_date.strftime('%Y/%m/%d')}")
+print(f"【計算至今日】: {today.strftime('%Y/%m/%d')}\n")
+print("=" * 35)
+print("計算結果 (每月的第一天或原始日期):")
+print("=" * 35)
+'''
+        # 2. 迴圈進行月份遞增計算
+date_list = []
+count = 0
     
-    return listing_date
+    # 當前日期小於或等於今天時，繼續迴圈
+while current_date <= today:
+        
+        # 將日期加入列表
+    date_list.append(current_date)
+        
+        # 格式化輸出，每 5 個日期換一行，方便閱讀
+    print(f"{current_date.strftime('%Y/%m/%d'):<12}", end="")
+    count += 1
+    if count % 5 == 0:
+        print() # 換行
+            
+        # 3. 遞增月份
+        # 使用 relativedelta(months=1) 進行精確的月份遞增，
+        # 它能正確處理不同月份的天數和閏年問題。
+    current_date += relativedelta(months=1)
+        
+print("\n" + "=" * 35)
+print(f"總共產生了 {len(date_list)} 個月份的日期。")
 
-# 執行函式
-result = get_listing_date(file_path, code_col, target_code, date_col)
-print(result)
+# 執行程式：從 2010/01/01 開始計算到今天
 
-print(f"取得的上市日期為: {result.replace('/', '')}")
+# 如果你需要使用這個日期列表進行後續分析，可以取消以下註解
+print("\n完整日期列表 (Python list 格式):")
+print(result_dates)
 
-start_date = result.replace('/', '')
-start_date_year = start_date[0:3]
-start_date_month = start_date[4:6]
-start_date_day = start_date[7:9]
-
-while int(start_date[4:6]):
-    if i == '0':
-        start_date = start_date.replace(i, '')
-    else:
-        break
+'''

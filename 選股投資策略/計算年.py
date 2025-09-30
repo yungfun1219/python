@@ -59,5 +59,6 @@ start_date = "2010/01/01"
 result_dates = generate_monthly_dates(start_date)
 
 # 如果你需要使用這個日期列表進行後續分析，可以取消以下註解
-# print("\n完整日期列表 (Python list 格式):")
-# print(result_dates)
+print("\n完整日期列表 (Python list 格式):")
+print(result_dates)
+
