@@ -3,23 +3,26 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import os
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-#當前目錄
-current_dir = os.path.dirname(os.path.abspath(__file__))+"\\"
-stock_data_dir = current_dir + 'stock_data\\'
 
-# 檔案路徑與日期欄位設定
-FILE_PATH = r'D:\Python_repo\python\選股投資策略\stock_data\2330_台積電_stock.csv'
-DATE_COLUMN_NAME = '日期'  # 請務必確認您的 CSV 檔案中，日期欄位的實際名稱！
-
- # 民國年轉西元年
+# 民國年轉西元年
 def transform_date(date):
-    Y, m, d = date.split('/')
+    try:
+        if '/' in date:
+            Y, m, d = date.split('/')
+        elif '-' in date:
+            Y, m, d = date.split('-')
+        else:
+            raise ValueError("日期格式錯誤，無法辨識分隔符號")
+    except Exception as e:
+        print(f"轉換日期時發生錯誤: {e}")
+        return date  # 發生錯誤時，回傳原始日期
+    
     return str(int(Y) + 1911) + '/' + m + '/' + d
 
-#df.to_csv(current_dir +'out.csv', index=False)    # 輸出成 CSV
-
-# 輸出一個份肥的 DataFrame 表格與其股票代碼
+# 輸出一個股的 DataFrame 表格與其股票代碼
 def data_to_csv(input_dataframe, stocks):
     # 確認檔案是否存在，如果存在就往下執行
     if os.path.isfile(stock_data_dir + '{}_{}_stock.csv'.format(stocks, '台積電')):
@@ -36,11 +39,11 @@ def data_to_csv(input_dataframe, stocks):
                 print('資料檢查結果：無重複資料...寫入中...')
                 input_dataframe.to_csv(stock_data_dir + '{}_{}_stock.csv'.format(stocks,  '台積電'), mode='a', index=False, header=False, encoding='utf-8-sig')
                 print('寫入完成!')
-                time.sleep(5)
+                time.sleep(2)
                 
         # 設定錯誤處理，避免跑到一半問題停止運行
         except:
-            print('有某步驟錯誤，請檢察 CODE，')
+            print('有步驟錯誤，請檢查程式!!')
             
     # 如果資料不存在，建立一份新資料
     else:
@@ -50,12 +53,11 @@ def data_to_csv(input_dataframe, stocks):
             os.makedirs(stock_data_dir)
         input_dataframe.to_csv(stock_data_dir + '{}_{}_stock.csv'.format(stocks,  '台積電'), mode='w', index=False, encoding='utf-8-sig')
         print('寫入完成！')
-        time.sleep(5)
+        time.sleep(2)
 
+#讀取 CSV 檔案，統一日期格式為 YYYY/MM/DD，依日期排序，並回存到原始檔案中。
 def process_stock_data(file_path, date_column):
-    """
-    讀取 CSV 檔案，統一日期格式為 YYYY/MM/DD，依日期排序，並回存到原始檔案中。
-    """
+    
     print(f"--- 開始處理檔案：{file_path} ---")
 
     # 1. 讀取 CSV 檔案並嘗試將日期轉換為 datetime 類型
@@ -87,7 +89,6 @@ def process_stock_data(file_path, date_column):
     df_sorted = df.sort_values(by=date_column, ascending=True)
 
     # 3. 統一日期格式並重設索引
-    
     # 統一格式為 YYYY/MM/DD (例如: 2025/01/01)
     df_sorted[date_column] = df_sorted[date_column].dt.strftime('%Y/%m/%d')
     
@@ -107,16 +108,25 @@ def process_stock_data(file_path, date_column):
     except Exception as e:
         print(f"【錯誤】儲存檔案時發生錯誤：{e}")
 
+#當前目錄
+current_dir = os.path.dirname(os.path.abspath(__file__))+"\\"
+stock_data_dir = current_dir + 'stock_data\\'
+
+# 檔案路徑與日期欄位設定
+FILE_PATH = r'D:\Python_repo\python\選股投資策略\stock_data\2330_台積電_stock.csv'
+DATE_COLUMN_NAME = '日期'  # 請務必確認您的 CSV 檔案中，日期欄位的實際名稱！
+
 headers = {
     'content-type': 'text/html; charset=UTF-8',
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
     }
 
-baseurl = "https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=html&date=20100101&stockNo=2330"
+baseurl = "https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=html&date=20120101&stockNo=2330"
 #baseurl = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=html&date={search_year}{search_month}01&stockNo={stock_no}"
 
 # 取得資料
-data = requests.get(url=baseurl, headers=headers).content
+data = requests.get(url=baseurl, headers=headers, verify=False).content
+# 解析 HTML
 soup = BeautifulSoup(data, 'html.parser')
 
 # 取得表格的 thead 與 tbody
