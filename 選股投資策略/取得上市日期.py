@@ -3,7 +3,8 @@ import pandas as pd
 # ==========================================================
 # 【重要】請根據您的檔案內容，修改以下參數：
 # ==========================================================
-FILE_PATH = r'D:\Python_repo\python\選股投資策略\exchange_list.csv'
+FILE_PATH = r'D:\Python_repo\python\選股投資策略\stock_data\raw\exchange_list.csv'
+
 
 # 1. 想查詢的證券代號（範例使用台積電 2330，您可以改為任何您想查的代號）
 TARGET_CODE = '2607' 

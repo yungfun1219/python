@@ -53,7 +53,7 @@ def create_stock_dict_from_csv(file_path):
 
 # --- 執行部分 ---
 # 設定您的檔案路徑
-file_path = r'D:\Python_repo\python\選股投資策略\exchange_list.csv'
+file_path = r'D:\Python_repo\python\選股投資策略\stock_data\raw\stocks_all.csv'
 
 # 呼叫函數並取得字典
 symbol_dict = create_stock_dict_from_csv(file_path)
