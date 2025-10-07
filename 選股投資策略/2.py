@@ -14,8 +14,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==========================================================
 # 參數設定
 # ==========================================================
-# 股票清單 CSV 檔案路徑 (用於查詢上市日，通常是 stocks_all.csv)
-LIST_FILE_PATH = r'D:\Python_repo\python\選股投資策略\stock_data\raw\stocks_all-old.csv'
 # 批量處理時，此變數將被清單中的代號取代
 TARGET_CODE = '1101' 
 MIN_START_DATE_STR = '2010/01/01'
@@ -23,6 +21,9 @@ MIN_START_DATE_STR = '2010/01/01'
 # 資料夾設定
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep
 RAW_DATA_DIR = os.path.join(BASE_DIR, 'stock_data', 'raw', 'indi_stocks')
+
+# 股票清單 CSV 檔案路徑 (用於查詢上市日，通常是 stocks_all.csv)
+LIST_FILE_PATH = BASE_DIR + r'\stock_data\raw\stocks_all-old.csv'
 
 # 欄位名稱設定
 CODE_COL = '有價證券代號'
