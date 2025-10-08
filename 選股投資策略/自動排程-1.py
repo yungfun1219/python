@@ -22,7 +22,7 @@ schedule.clear()
 schedule.every(15).seconds.do(say_hi)
 
 # 每天 15:00 運行一次 get_price 函數
-schedule.every().day.at('15:00').do(get_price)
+schedule.every().day.at('22:54').do(get_price)
 
 # 將 schedule.run_pending() 放在 while 無窮迴圈內
 while True:
