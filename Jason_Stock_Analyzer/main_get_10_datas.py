@@ -5,12 +5,13 @@ import urllib3
 import re
 from datetime import date
 from typing import Optional
+import os
 
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- 配置 (Configuration) ---
-LOG_FILENAME = "last_fetch_date.log" # 定義日誌檔案名稱
+LOG_FILENAME = "last_get_date.log" # 定義日誌檔案名稱
 
 # --- 輔助函式 (Helper Functions) ---
 
@@ -83,10 +84,14 @@ def _fetch_twse_data(url: str) -> Optional[str]:
 
 def log_fetch_date(fetch_date: str, filename: str = LOG_FILENAME):
     """將成功抓取資料的日期寫入日誌檔案。"""
+
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "logs" )
+    filename_new = OUTPUT_DIR + f"\\{filename}"    
+
     try:
-        with open(filename, 'w', encoding='utf-8') as f:
+        with open(filename_new, 'w', encoding='utf-8') as f:
             f.write(fetch_date)
-        print(f"\n[日誌] 成功將最後抓取日期 ({fetch_date}) 寫入檔案：{filename}")
+        print(f"\n[日誌] 成功將最後抓取日期 ({fetch_date}) 寫入檔案：{filename_new}")
     except Exception as e:
         print(f"❌ 寫入日誌檔案發生錯誤: {e}")
 
@@ -100,7 +105,9 @@ def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFra
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
     url = f"{base_url}?date={target_date}&stockNo={stock_no}&response=csv"
-    filename = f"{target_date}_{stock_no}_STOCK_DAY.csv"
+
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "1_STOCK_DAY")
+    filename = OUTPUT_DIR + f"\\{target_date}_{stock_no}_STOCK_DAY.csv"
 
     print(f"嘗試抓取 (1/10) {stock_no} STOCK_DAY 資料...")
     response_text = _fetch_twse_data(url)
@@ -119,14 +126,13 @@ def fetch_twse_mi_index(target_date: str) -> Optional[pd.DataFrame]:
     """
     (2/10) 抓取指定日期的 MI_INDEX 報告 (所有類股成交統計)。
     URL: https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX
-    
-    **修正:** 表頭索引改為 3 (原為 2)。
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
     url = f"{base_url}?date={target_date}&type=ALLBUT0999&response=csv"
-    filename = f"{target_date}_MI_INDEX_Sector.csv"
-    
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "2_MI_INDEX")
+    filename = OUTPUT_DIR + f"\\{target_date}_MI_INDEX_Sector.csv"
+
     print(f"嘗試抓取 (2/10) MI_INDEX (類股統計) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -145,14 +151,14 @@ def fetch_twse_bwibbu_d(target_date: str) -> Optional[pd.DataFrame]:
     """
     (3/10) 抓取指定日期的 BWIBBU_d 報告 (發行量加權股價指數類股日成交量值及報酬率)。
     URL: https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d
-    
-    **修正:** 表頭索引改為 3 (原為 2)。
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d"
     url = f"{base_url}?date={target_date}&selectType=ALL&response=csv"
-    filename = f"{target_date}_BWIBBU_d_IndexReturn.csv"
     
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "3_BWIBBU_d")
+    filename = OUTPUT_DIR + f"\\{target_date}_BWIBBU_d_IndexReturn.csv"
+
     print(f"嘗試抓取 (3/10) BWIBBU_d (類股報酬率) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -177,8 +183,10 @@ def fetch_twse_mi_index20(target_date: str) -> Optional[pd.DataFrame]:
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX20"
     url = f"{base_url}?date={target_date}&response=csv"
-    filename = f"{target_date}_MI_INDEX20_Market.csv"
-    
+        
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "4_MI_INDEX20")
+    filename = OUTPUT_DIR + f"\\{target_date}_MI_INDEX20_Market.csv"
+
     print(f"嘗試抓取 (4/10) MI_INDEX20 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -198,13 +206,14 @@ def fetch_twse_twtasu(target_date: str) -> Optional[pd.DataFrame]:
     (5/10) 抓取指定日期的 TWTASU 報告 (每日總成交量值與平均股價)。
     URL: https://www.twse.com.tw/rwd/zh/afterTrading/TWTASU
     
-    **修正:** 表頭索引改為 3 (原為 2)。
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/TWTASU"
     url = f"{base_url}?date={target_date}&response=csv"
-    filename = f"{target_date}_TWTASU_VolumePrice.csv"
     
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "5_TWTASU")
+    filename = OUTPUT_DIR + f"\\{target_date}_TWTASU_VolumePrice.csv"
+
     print(f"嘗試抓取 (5/10) TWTASU (總量值) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -229,8 +238,10 @@ def fetch_twse_bfiamu(target_date: str) -> Optional[pd.DataFrame]:
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/BFIAMU"
     url = f"{base_url}?date={target_date}&response=csv"
-    filename = f"{target_date}_BFIAMU_DealerTrade.csv"
     
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "6_BFIAMU")
+    filename = OUTPUT_DIR + f"\\{target_date}_BFIAMU_DealerTrade.csv"
+
     print(f"嘗試抓取 (6/10) BFIAMU (自營商買賣超) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -250,13 +261,14 @@ def fetch_twse_fmtqik(target_date: str) -> Optional[pd.DataFrame]:
     (7/10) 抓取指定日期的 FMTQIK 報告 (每日券商成交量值總表)。
     URL: https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK
     
-    **修正:** 表頭索引改為 2 (原為 1)。
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK"
     url = f"{base_url}?date={target_date}&response=csv"
-    filename = f"{target_date}_FMTQIK_BrokerVolume.csv"
     
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "7_FMTQIK")
+    filename = OUTPUT_DIR + f"\\{target_date}_FMTQIK_BrokerVolume.csv"
+
     print(f"嘗試抓取 (7/10) FMTQIK (券商成交總表) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -278,14 +290,15 @@ def fetch_twse_bfi82u(target_date: str) -> Optional[pd.DataFrame]:
     (8/10) 抓取指定日期的 BFI82U 報告 (三大法人買賣超彙總表 - 日)。
     URL: https://www.twse.com.tw/rwd/zh/fund/BFI82U
     
-    **修正:** 表頭索引改為 3 (原為 1)。
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/fund/BFI82U"
     # 只使用 dayDate 進行日期參數模組化
     url = f"{base_url}?type=day&dayDate={target_date}&response=csv"
-    filename = f"{target_date}_BFI82U_3IParty_Day.csv"
-    
+        
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "8_BFI82U")
+    filename = OUTPUT_DIR + f"\\{target_date}_BFI82U_3IParty_Day.csv"
+
     print(f"嘗試抓取 (8/10) BFI82U (三大法人日報) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -305,13 +318,14 @@ def fetch_twse_twt43u(target_date: str) -> Optional[pd.DataFrame]:
     (9/10) 抓取指定日期的 TWT43U 報告 (外資及陸資買賣超彙總表)。
     URL: https://www.twse.com.tw/rwd/zh/fund/TWT43U
     
-    **修正:** 表頭索引改為 3 (原為 1)。
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/fund/TWT43U"
     url = f"{base_url}?date={target_date}&response=csv"
-    filename = f"{target_date}_TWT43U_ForeignTrade.csv"
-    
+
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "9_TWT43U")
+    filename = OUTPUT_DIR + f"\\{target_date}_TWT43U_ForeignTrade.csv"
+
     print(f"嘗試抓取 (9/10) TWT43U (外資買賣超) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -334,8 +348,10 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/fund/TWT44U"
     url = f"{base_url}?date={target_date}&response=csv"
-    filename = f"{target_date}_TWT44U_InvestmentTrust.csv"
     
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "10_TWT44U")
+    filename = OUTPUT_DIR + f"\\{target_date}_TWT44U_InvestmentTrust.csv"
+
     print(f"嘗試抓取 (10/10) TWT44U (投信買賣超) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -352,8 +368,11 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
 # --- 範例使用 (模組化參數化並呼叫所有 10 個函式) ---
 
 # 設定您想要抓取的目標日期 (只需修改此處即可抓取所有報告的資料)
-TARGET_DATE = "20251009" 
+# 1. 取得今天的日期並格式化為 YYYYMMDD
+
+TARGET_DATE = date.today().strftime("%Y%m%d") 
 TARGET_STOCK = "2330" # 台灣積體電路製造
+#TARGET_DATE = "20251008"  # 測試用特定日期
 
 print("\n" + "="*50)
 print("--- 程式開始執行：TWSE 10 大報告批量抓取 ---")

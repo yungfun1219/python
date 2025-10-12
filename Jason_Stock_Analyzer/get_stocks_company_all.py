@@ -4,9 +4,10 @@ import pandas as pd
 import os
 import urllib3
 import sys
-# 確保 Pandas 處理 CSV 時，空值會被正確識別
+from typing import Optional
 import numpy as np 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 # ----- 全局設定 -----
 HEADERS = {
@@ -20,6 +21,8 @@ HEADERS = {
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw")
 # --------------------
 
+
+print(f"debug: 資料將儲存至: {OUTPUT_DIR}")
 
 def list_stock(input_type):
     """爬取指定市場的股票清單，並儲存為 CSV 檔案。"""
@@ -139,6 +142,47 @@ def combine_and_save(output_dir, file_types):
     for input_type in file_types:
         os.remove(os.path.join(output_dir, f'{input_type}_list.csv'))
     print("已清除暫存的 exchange_list.csv 和 counter_list.csv。")
+
+# --- 額外功能: 計算合併後檔案中的股票數量 ---
+def count_stocks_in_csv(file_path: str) -> Optional[int]:
+    """
+    讀取指定的 CSV 檔案，並計算其中的資料列數（即股票數量）。
+    Args:
+        file_path: 欲讀取的 CSV 檔案的完整路徑 (str)。
+    Returns:
+        成功時回傳股票數量 (int)；若檔案不存在或讀取失敗則回傳 None。
+    """
+    
+    # 1. 檢查檔案是否存在
+    if not os.path.exists(file_path):
+        print(f"錯誤：檔案不存在於 {file_path}")
+        return None
+
+    # 2. 嘗試讀取 CSV 檔案
+    # 設定編碼優先順序：'utf-8' -> 'big5'
+    encodings_to_try = ['utf-8', 'big5']
+    df = None
+    
+    for encoding in encodings_to_try:
+        try:
+            # header=0 告訴 Pandas 檔案的第一行是欄位標題
+            df = pd.read_csv(file_path, header=0, encoding=encoding)
+            # 如果成功讀取，則跳出迴圈
+            # print(f"成功使用 {encoding} 編碼讀取檔案。")
+            break
+        except Exception:
+            # 忽略當前的編碼錯誤，嘗試下一個編碼
+            continue
+    
+    # 3. 檢查是否成功讀取
+    if df is None:
+        print(f"錯誤：嘗試了 {', '.join(encodings_to_try)} 編碼，但讀取檔案失敗。")
+        return None
+    
+    # 4. 計算股票數量並回傳
+    # df.shape[0] 即為資料列數 (行數)
+    stock_count = df.shape[0]
+    return stock_count
 
 
 if __name__ == '__main__':
