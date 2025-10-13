@@ -1,5 +1,4 @@
 # 忽略專案中所有 .csv 檔案
 *.csv
-
-# 如果你只想忽略特定資料夾中的 .csv 檔案，則使用下一行 (取代上一行)
-# stock_data/raw/price_to_earnings/*.csv
+*.env
+line_API.env
