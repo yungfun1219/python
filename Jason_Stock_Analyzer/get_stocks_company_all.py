@@ -1,3 +1,4 @@
+# 【2025/10/13_上市、櫃公司股票名單】
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -6,6 +7,7 @@ import urllib3
 import sys
 from typing import Optional
 import numpy as np 
+from datetime import date
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -18,11 +20,11 @@ HEADERS = {
 }
 
 # 定義目標資料夾路徑
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw")
+OUTPUT_log_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "logs")
+OUTPUT_csv_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw")
+# 定義數據清理結果的日誌檔案名稱
+LOG_SUMMARY_FILENAME = 'get_company_all.log'
 # --------------------
-
-
-print(f"debug: 資料將儲存至: {OUTPUT_DIR}")
 
 def list_stock(input_type):
     """爬取指定市場的股票清單，並儲存為 CSV 檔案。"""
@@ -31,7 +33,7 @@ def list_stock(input_type):
         'counter': 'https://isin.twse.com.tw/isin/C_public.jsp?strMode=4'  # 上櫃
     }
     
-    file_path = os.path.join(OUTPUT_DIR, f'{input_type}_list.csv')
+    file_path = os.path.join(OUTPUT_csv_DIR, f'{input_type}_list.csv')
     print(f"--- 開始爬取 {input_type} 資料 ---")
     
     try:
@@ -58,6 +60,7 @@ def list_stock(input_type):
     # 處理第一欄位合併問題 (將代號和名稱分離)
     for deal_str in datalist[1:]:
         if len(deal_str) == 7:
+            # TWSE 使用全形空格 \u3000 分隔代號與名稱
             parts = deal_str[0].split('\u3000', 1) 
             if len(parts) == 2:
                 deal_str[0] = parts[0].strip()
@@ -81,12 +84,17 @@ def list_stock(input_type):
 
 def combine_and_save(output_dir, file_types):
     """
-    讀取多個 CSV 檔案，合併、篩選「產業別」空白的公司，並儲存為一個總檔案。
+    讀取多個 CSV 檔案，合併、篩選「產業別」空白的公司，並儲存為一個總檔案，
+    同時將清理結果寫入日誌檔案。
+    
+    Args:
+        output_dir (str): CSV 檔案的目標儲存路徑 (datas/raw)。
+        file_types (list): 爬取的市場類型清單。
     """
     print("\n--- 開始合併檔案與數據清理 ---")
     all_data = []
     
-    # 檢查並建立輸出資料夾
+    # 檢查並建立輸出資料夾 (針對 output_dir, 也就是 datas/raw)
     if not os.path.exists(output_dir):
         try:
             os.makedirs(output_dir)
@@ -124,12 +132,32 @@ def combine_and_save(output_dir, file_types):
     
     final_rows = len(combined_df)
     
-    print(f"\n數據清理結果:")
-    print(f"  原始總筆數: {initial_rows}")
-    print(f"  刪除無產業別筆數: {initial_rows - final_rows}")
-    print(f"  最終總筆數: {final_rows}")
+    # 3. 格式化數據清理結果
+    summary_content = (
+        f"【{date.today().strftime("%Y年%m月%d日")}_上市、櫃公司股票名單】:\n"
+        f"   原始總筆數: {initial_rows}\n"
+        f"   刪除無產業別筆數: {initial_rows - final_rows}\n"
+        f"   最終總筆數: {final_rows}"
+    )
     
-    # 3. 儲存最終檔案
+    # 4. 打印清理結果到控制台
+    print(f"\n{summary_content}")
+    
+    # 5. 寫入日誌檔案
+    log_file_path = os.path.join(OUTPUT_log_DIR, LOG_SUMMARY_FILENAME)
+    try:
+        # 檢查並建立 logs 資料夾 (LOGS資料夾需要獨立檢查)
+        if not os.path.exists(OUTPUT_log_DIR):
+            os.makedirs(OUTPUT_log_DIR)
+            
+        with open(log_file_path, 'w', encoding='utf-8') as f:
+            f.write(summary_content)
+        print(f"【成功】數據清理結果已記錄至日誌檔案：{log_file_path}")
+    except Exception as e:
+        print(f"【錯誤】寫入日誌檔案 {LOG_SUMMARY_FILENAME} 失敗: {e}")
+
+
+    # 6. 儲存最終檔案 - 修正：應使用 output_dir (即 OUTPUT_csv_DIR/datas/raw)
     final_file_path = os.path.join(output_dir, 'stocks_all.csv')
     combined_df.to_csv(final_file_path, index=False, encoding='utf-8-sig')
     
@@ -140,10 +168,14 @@ def combine_and_save(output_dir, file_types):
 
     # (可選) 刪除暫存的單一市場檔案
     for input_type in file_types:
-        os.remove(os.path.join(output_dir, f'{input_type}_list.csv'))
+        try:
+            os.remove(os.path.join(output_dir, f'{input_type}_list.csv'))
+        except OSError as e:
+            print(f"【警告】清除暫存檔案 {input_type}_list.csv 失敗: {e}")
+            continue
     print("已清除暫存的 exchange_list.csv 和 counter_list.csv。")
 
-# --- 額外功能: 計算合併後檔案中的股票數量 ---
+# --- 額外功能: 計算合併後檔案中的股票數量 (維持不變) ---
 def count_stocks_in_csv(file_path: str) -> Optional[int]:
     """
     讀取指定的 CSV 檔案，並計算其中的資料列數（即股票數量）。
@@ -191,5 +223,5 @@ if __name__ == '__main__':
     for stock_type in FILE_TYPES:
         list_stock(stock_type)
 
-    # 2. 合併所有儲存的檔案並進行篩選
-    combine_and_save(OUTPUT_DIR, FILE_TYPES)
+    # 2. 合併所有儲存的檔案並進行篩選與日誌記錄
+    combine_and_save(OUTPUT_csv_DIR, FILE_TYPES)

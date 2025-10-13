@@ -4,16 +4,31 @@ from io import StringIO
 import urllib3
 import re
 from datetime import date
-from typing import Optional
+from typing import Optional, Tuple, List
+from pathlib import Path
 import os
+import utils.jason_utils as jutils
 
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- 配置 (Configuration) ---
-LOG_FILENAME = "last_get_date.log" # 定義日誌檔案名稱
+LOG_FETCH_DATE_FILENAME = "last_get_date.log" # 定義記錄上次成功抓取日期的日誌檔案名稱
+SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
 
 # --- 輔助函式 (Helper Functions) ---
+def check_folder_and_create(folder_path: str):
+    """
+    檢查檔案是否存在且確實是一個檔案 (非資料夾)。
+    參數:
+        file_path (str): 要檢查的檔案路徑。
+    回傳:
+        bool: 檔案存在時回傳 True；否則回傳 False。
+    """
+    OUTPUT_DIR, filename_new = jutils.get_path_to_folder_file(folder_path)
+    jutils.check_and_create_folder(OUTPUT_DIR)
+    jutils.check_file_exists(filename_new)
+    return True
 
 def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame]:
     """
@@ -82,21 +97,62 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         
     return None
 
-def log_fetch_date(fetch_date: str, filename: str = LOG_FILENAME):
-    """將成功抓取資料的日期寫入日誌檔案。"""
+def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch_date: str, summary_filename_prefix: str = SUMMARY_LOG_FILENAME_PREFIX):
+    """
+    【新增函式】將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
+    """
+    
+    base_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+    OUTPUT_DIR = base_dir / "datas" / "logs"
+    
+    # 確保日誌資料夾存在
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    log_file_name = f"{summary_filename_prefix}_{fetch_date}.log"
+    filename_new = OUTPUT_DIR / log_file_name 
+    
+    # 建立摘要內容字串
+    summary_lines = []
+    
+    header = "\n" + "="*50 + "\n"
+    header += f"--- {fetch_date} 報告抓取結果摘要 ---\n"
+    header += "="*50
+    summary_lines.append(header)
+    
+    success_count = 0
+    fail_count = 0
 
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "logs" )
-    filename_new = OUTPUT_DIR + f"\\{filename}"    
+    for name, df in results:
+        if df is not None:
+            line = f"\n[🟢 {name} (成功)] 數據筆數: {len(df)}"
+            success_count += 1
+        else:
+            line = f"[🔴 {name} (失敗)] 無數據或抓取錯誤。"
+            fail_count += 1
+        summary_lines.append(line)
 
+    footer = "\n" + "="*50
+    footer += f"\n總結：成功 {success_count} 個報告, 失敗 {fail_count} 個報告。"
+    footer += "\n所有成功抓取的 CSV 檔案已儲存至對應的 'datas/raw' 子資料夾中。"
+    footer += "\n--- 日誌記錄結束 ---\n"
+    
+    summary_lines.append(footer)
+    
+    log_content = "\n".join(summary_lines)
+
+    # 寫入日誌檔案
     try:
         with open(filename_new, 'w', encoding='utf-8') as f:
-            f.write(fetch_date)
-        print(f"\n[日誌] 成功將最後抓取日期 ({fetch_date}) 寫入檔案：{filename_new}")
+            f.write(log_content)
+        
+        # 同時列印到控制台
+        print(log_content)
+        print(f"[日誌] 成功將摘要結果寫入檔案：{filename_new}")
     except Exception as e:
-        print(f"❌ 寫入日誌檔案發生錯誤: {e}")
+        print(f"❌ 寫入摘要日誌檔案發生錯誤: {e}")
+
 
 # --- 10 大 TWSE 報告抓取函式 (分頁與個股) ---
-
 def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFrame]:
     """
     (1/10) 抓取指定日期和股票代號的 STOCK_DAY 報告 (每日成交資訊)。
@@ -108,6 +164,8 @@ def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFra
 
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "1_STOCK_DAY")
     filename = OUTPUT_DIR + f"\\{target_date}_{stock_no}_STOCK_DAY.csv"
+
+    check_folder_and_create(filename)
 
     print(f"嘗試抓取 (1/10) {stock_no} STOCK_DAY 資料...")
     response_text = _fetch_twse_data(url)
@@ -133,6 +191,8 @@ def fetch_twse_mi_index(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "2_MI_INDEX")
     filename = OUTPUT_DIR + f"\\{target_date}_MI_INDEX_Sector.csv"
 
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (2/10) MI_INDEX (類股統計) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -159,6 +219,8 @@ def fetch_twse_bwibbu_d(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "3_BWIBBU_d")
     filename = OUTPUT_DIR + f"\\{target_date}_BWIBBU_d_IndexReturn.csv"
 
+    check_folder_and_create(filename)
+        
     print(f"嘗試抓取 (3/10) BWIBBU_d (類股報酬率) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -186,7 +248,9 @@ def fetch_twse_mi_index20(target_date: str) -> Optional[pd.DataFrame]:
         
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "4_MI_INDEX20")
     filename = OUTPUT_DIR + f"\\{target_date}_MI_INDEX20_Market.csv"
-
+    
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (4/10) MI_INDEX20 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -214,6 +278,8 @@ def fetch_twse_twtasu(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "5_TWTASU")
     filename = OUTPUT_DIR + f"\\{target_date}_TWTASU_VolumePrice.csv"
 
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (5/10) TWTASU (總量值) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -242,6 +308,8 @@ def fetch_twse_bfiamu(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "6_BFIAMU")
     filename = OUTPUT_DIR + f"\\{target_date}_BFIAMU_DealerTrade.csv"
 
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (6/10) BFIAMU (自營商買賣超) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -269,6 +337,8 @@ def fetch_twse_fmtqik(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "7_FMTQIK")
     filename = OUTPUT_DIR + f"\\{target_date}_FMTQIK_BrokerVolume.csv"
 
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (7/10) FMTQIK (券商成交總表) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -299,6 +369,8 @@ def fetch_twse_bfi82u(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "8_BFI82U")
     filename = OUTPUT_DIR + f"\\{target_date}_BFI82U_3IParty_Day.csv"
 
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (8/10) BFI82U (三大法人日報) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -326,6 +398,8 @@ def fetch_twse_twt43u(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "9_TWT43U")
     filename = OUTPUT_DIR + f"\\{target_date}_TWT43U_ForeignTrade.csv"
 
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (9/10) TWT43U (外資買賣超) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -352,6 +426,8 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "10_TWT44U")
     filename = OUTPUT_DIR + f"\\{target_date}_TWT44U_InvestmentTrust.csv"
 
+    check_folder_and_create(filename)
+    
     print(f"嘗試抓取 (10/10) TWT44U (投信買賣超) 資料...")
     response_text = _fetch_twse_data(url)
     if response_text is None: return None
@@ -372,7 +448,7 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
 
 TARGET_DATE = date.today().strftime("%Y%m%d") 
 TARGET_STOCK = "2330" # 台灣積體電路製造
-#TARGET_DATE = "20251008"  # 測試用特定日期
+TARGET_DATE = "20251008"  # 測試用特定日期
 
 print("\n" + "="*50)
 print("--- 程式開始執行：TWSE 10 大報告批量抓取 ---")
@@ -425,7 +501,7 @@ for name, df in results:
         print(f"[🔴 {name} (失敗)] 無數據或抓取錯誤。")
 
 # 增加日誌儲存：記錄本次嘗試抓取的日期
-log_fetch_date(TARGET_DATE)
+log_summary_results(results, TARGET_DATE)
 
 print("\n所有 CSV 檔案已儲存至程式執行目錄下。")
 print("--- 程式執行結束 ---")
