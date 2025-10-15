@@ -32,7 +32,7 @@ if __name__ == "__main__":
     if not os.getenv("GEMINI_API_KEY"):
          print("錯誤：未能從 gemini_API.env 載入 GEMINI_API_KEY。請檢查檔案內容和名稱。")
          exit()
-    user_input = "今天是2025年10月14日，請提供我台灣股票台積電2330這五天的價格比較"
+    user_input = "今天是2025年10月15日，請幫我從https://tw.stock.yahoo.com/的網站資訊，針對台灣股票台達電的技術資料！"
     # user_input = input("請輸入您的詢問文字: \n")
     if user_input.strip():
         gemini_reply = get_gemini_response(user_input)

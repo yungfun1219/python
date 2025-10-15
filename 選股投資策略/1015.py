@@ -62,8 +62,8 @@ def fetch_twse_holidays(year: int) -> Optional[pd.DataFrame]:
         
         # 2. 重新命名欄位為中文 (如果 TWSE 提供的欄位名稱不是標準中文)
         # 根據實際資料結構，假設欄位為 '日期' 和 '說明'
-        if len(df.columns) >= 4:
-            df.columns = ['日期', '名稱', '說明', '備註']
+        if len(df.columns) >= 2:
+            df.columns = ['日期', '說明']
         
         # 3. 確保日期欄位為標準格式 (如果需要)
         # df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
@@ -104,5 +104,3 @@ if __name__ == '__main__':
         save_dataframe_to_csv(holidays_df, target_year)
     else:
         print("無法取得休市日期資料，請檢查網路連線或 TWSE 網址。")
-
-    print(holidays_df)

@@ -18,7 +18,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 LIST_FILE_PATH = r'D:\Python_repo\python\選股投資策略\stock_data\raw\stocks_all.csv'
 # 批量處理時，此變數將被清單中的代號取代
 TARGET_CODE = '1101' 
-MIN_START_DATE_STR = '2010/01/01'
+MIN_START_DATE_STR = '2025/01/01'
 
 # 資料夾設定
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep

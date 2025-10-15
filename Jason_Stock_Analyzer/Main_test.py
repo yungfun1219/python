@@ -447,7 +447,8 @@ print("="*50 + "\n")
 results = []
 
 # 1. STOCK_DAY (個股日成交資訊)
-results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
+# 改以單獨的程式抓取資料
+#results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
 
 # 2. MI_INDEX (所有類股成交統計)
 results.append(("MI_INDEX", fetch_twse_mi_index(TARGET_DATE))) 
