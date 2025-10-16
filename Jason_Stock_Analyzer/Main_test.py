@@ -8,6 +8,7 @@ from typing import Optional, Tuple, List
 from pathlib import Path
 import os
 import utils.jason_utils as jutils
+import get_stocks_company_all 
 
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -494,3 +495,11 @@ log_summary_results(results, TARGET_DATE)
 
 print("\n所有 CSV 檔案已儲存至程式執行目錄下。")
 print("--- 程式執行結束 ---")
+#==========================================================
+# 爬取並儲存上市/上櫃資料
+FILE_TYPES = ['exchange', 'counter']
+for stock_type in FILE_TYPES:
+    get_stocks_company_all.list_stock(stock_type)
+# 2. 合併所有儲存的檔案並進行篩選與日誌記錄
+get_stocks_company_all.combine_and_save(get_stocks_company_all.OUTPUT_csv_DIR, FILE_TYPES)
+#==========================================================

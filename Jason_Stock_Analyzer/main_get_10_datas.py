@@ -8,18 +8,20 @@ from typing import Optional, Tuple, List
 from pathlib import Path
 import os
 import utils.jason_utils as jutils
+import get_stocks_company_all 
 
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# --- 配置 (Configuration) ---
+# ==========================================================
+# 參數設定  --- 配置 (Configuration) ---
+# ==========================================================
 LOG_FETCH_DATE_FILENAME = "last_get_date.log" # 定義記錄上次成功抓取日期的日誌檔案名稱
 SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
 
-# --- 輔助函式 (Helper Functions) ---
+# 檢查檔案是否存在且確實是一個檔案 (非資料夾)
 def check_folder_and_create(folder_path: str):
     """
-    檢查檔案是否存在且確實是一個檔案 (非資料夾)。
     參數:
         file_path (str): 要檢查的檔案路徑。
     回傳:
@@ -30,14 +32,12 @@ def check_folder_and_create(folder_path: str):
     jutils.check_file_exists(filename_new)
     return True
 
+# 共用的輔助函式，用於處理 TWSE 的 Big5 編碼和 Pandas 讀取邏輯。
 def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame]:
     """
-    共用的輔助函式，用於處理 TWSE 的 Big5 編碼和 Pandas 讀取邏輯。
-    
     Args:
         response_text: HTTP 請求回傳的文字內容 (Big5 編碼)。
         header_row: CSV 檔案中資料表頭所在的行數 (0-indexed)。
-
     Returns:
         Optional[pd.DataFrame]: 處理後的 DataFrame。
     """
@@ -51,32 +51,24 @@ def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame
             on_bad_lines='skip',        # 跳過格式不正確的行
             encoding='Big5'             # 使用 Big5 編碼讀取
         )
-        
-        # *** 關鍵修正：清理欄位名稱的前後空格 ***
         # TWSE 的 CSV 欄位名稱常有隱藏空格，導致 df.columns 無法正確匹配。
         if not df.empty:
             df.columns = df.columns.str.strip()
-        # *** 修正結束 ***
-        
         # 移除所有欄位皆為空的行
         df = df.dropna(how='all')
-        
         # 移除資料尾部可能出現的彙總或備註行
         if not df.empty and df.iloc[-1].astype(str).str.contains('合計|總計|備註', na=False).any():
             df = df.iloc[:-1]
-            
         return df
     except Exception as e:
         print(f"在讀取或清理 CSV 數據時發生錯誤: {e}")
-        return None
 
+        return None
+# 共用的輔助函式，用於發送 HTTP 請求並檢查狀態。
 def _fetch_twse_data(url: str) -> Optional[str]:
     """
-    共用的輔助函式，用於發送 HTTP 請求並檢查狀態。
-    
     Args:
         url: 完整的 TWSE 資料 URL。
-
     Returns:
         Optional[str]: 成功獲取後，以 Big5 解碼的文字內容。
     """
@@ -94,17 +86,14 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         print(f"❌ 連線或 Requests 錯誤: {err}")
     except Exception as e:
         print(f"❌ 發生其他錯誤: {e}")
-        
+
     return None
 
+#】將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
 def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch_date: str, summary_filename_prefix: str = SUMMARY_LOG_FILENAME_PREFIX):
-    """
-    【新增函式】將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
-    """
-    
-    base_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-    OUTPUT_DIR = base_dir / "datas" / "logs"
-    
+    BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+    OUTPUT_DIR = BASE_DIR / "datas" / "logs"
+
     # 確保日誌資料夾存在
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -459,7 +448,8 @@ print("="*50 + "\n")
 results = []
 
 # 1. STOCK_DAY (個股日成交資訊)
-results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
+# 改以單獨的程式抓取資料
+#results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
 
 # 2. MI_INDEX (所有類股成交統計)
 results.append(("MI_INDEX", fetch_twse_mi_index(TARGET_DATE))) 
@@ -505,3 +495,11 @@ log_summary_results(results, TARGET_DATE)
 
 print("\n所有 CSV 檔案已儲存至程式執行目錄下。")
 print("--- 程式執行結束 ---")
+#==========================================================
+# 爬取並儲存上市/上櫃資料
+FILE_TYPES = ['exchange', 'counter']
+for stock_type in FILE_TYPES:
+    get_stocks_company_all.list_stock(stock_type)
+# 2. 合併所有儲存的檔案並進行篩選與日誌記錄
+get_stocks_company_all.combine_and_save(get_stocks_company_all.OUTPUT_csv_DIR, FILE_TYPES)
+#==========================================================
