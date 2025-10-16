@@ -79,14 +79,13 @@ def list_stock(input_type):
 
     df = pd.DataFrame(datalist[1:], columns=title)
     df.to_csv(file_path, index=False, encoding='utf-8-sig')
-    print(f'【成功】{file_path} 已儲存。')
+    print(f'【成功】{file_path} 已儲存。\n')
 
 
 def combine_and_save(output_dir, file_types):
     """
     讀取多個 CSV 檔案，合併、篩選「產業別」空白的公司，並儲存為一個總檔案，
     同時將清理結果寫入日誌檔案。
-    
     Args:
         output_dir (str): CSV 檔案的目標儲存路徑 (datas/raw)。
         file_types (list): 爬取的市場類型清單。
@@ -157,7 +156,7 @@ def combine_and_save(output_dir, file_types):
         print(f"【錯誤】寫入日誌檔案 {LOG_SUMMARY_FILENAME} 失敗: {e}")
 
 
-    # 6. 儲存最終檔案 - 修正：應使用 output_dir (即 OUTPUT_csv_DIR/datas/raw)
+    # 6. 儲存最終檔案 
     final_file_path = os.path.join(output_dir, 'stocks_all.csv')
     combined_df.to_csv(final_file_path, index=False, encoding='utf-8-sig')
     
@@ -173,49 +172,8 @@ def combine_and_save(output_dir, file_types):
         except OSError as e:
             print(f"【警告】清除暫存檔案 {input_type}_list.csv 失敗: {e}")
             continue
-    print("已清除暫存的 exchange_list.csv 和 counter_list.csv。")
-
-# --- 額外功能: 計算合併後檔案中的股票數量 (維持不變) ---
-def count_stocks_in_csv(file_path: str) -> Optional[int]:
-    """
-    讀取指定的 CSV 檔案，並計算其中的資料列數（即股票數量）。
-    Args:
-        file_path: 欲讀取的 CSV 檔案的完整路徑 (str)。
-    Returns:
-        成功時回傳股票數量 (int)；若檔案不存在或讀取失敗則回傳 None。
-    """
-    
-    # 1. 檢查檔案是否存在
-    if not os.path.exists(file_path):
-        print(f"錯誤：檔案不存在於 {file_path}")
-        return None
-
-    # 2. 嘗試讀取 CSV 檔案
-    # 設定編碼優先順序：'utf-8' -> 'big5'
-    encodings_to_try = ['utf-8', 'big5']
-    df = None
-    
-    for encoding in encodings_to_try:
-        try:
-            # header=0 告訴 Pandas 檔案的第一行是欄位標題
-            df = pd.read_csv(file_path, header=0, encoding=encoding)
-            # 如果成功讀取，則跳出迴圈
-            # print(f"成功使用 {encoding} 編碼讀取檔案。")
-            break
-        except Exception:
-            # 忽略當前的編碼錯誤，嘗試下一個編碼
-            continue
-    
-    # 3. 檢查是否成功讀取
-    if df is None:
-        print(f"錯誤：嘗試了 {', '.join(encodings_to_try)} 編碼，但讀取檔案失敗。")
-        return None
-    
-    # 4. 計算股票數量並回傳
-    # df.shape[0] 即為資料列數 (行數)
-    stock_count = df.shape[0]
-    return stock_count
-
+    print("已清除暫存的 exchange_list.csv 和 counter_list.csv。\n")
+    print("抓取資料已完成\n")
 
 if __name__ == '__main__':
     # 1. 爬取並儲存上市/上櫃資料

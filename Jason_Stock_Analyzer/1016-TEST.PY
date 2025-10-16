@@ -10,6 +10,7 @@ import os
 import utils.jason_utils as jutils
 import get_stocks_company_all 
 
+
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -435,65 +436,49 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
 # 設定您想要抓取的目標日期 (只需修改此處即可抓取所有報告的資料)
 # 1. 取得今天的日期並格式化為 YYYYMMDD
 
-TARGET_DATE = date.today().strftime("%Y%m%d") 
+TARGET_END_DATE = date.today().strftime("%Y%m%d") 
 TARGET_STOCK = "2330" # 台灣積體電路製造
-#TARGET_DATE = "20251008"  # 測試用特定日期
+MIN_START_DATE_STR = '20250101'
+for single_date in pd.date_range(start="20250101", end=TARGET_END_DATE):
 
-print("\n" + "="*50)
-print("--- 程式開始執行：TWSE 10 大報告批量抓取 ---")
-print(f"🎯 目標查詢日期: {TARGET_DATE} | 股票代號: {TARGET_STOCK}")
-print("="*50 + "\n")
+    get_single_date = single_date.strftime("%Y%m%d")
+    print("\n" + "="*50)
+    print("--- 程式開始執行：TWSE 10 大報告批量抓取 ---")
+    print(f"🎯 目標查詢日期: {get_single_date} | 股票代號: {TARGET_STOCK}")
+    print("="*50 + "\n")
 
-# 設置一個列表來儲存結果，便於最終預覽
-results = []
+    # 設置一個列表來儲存結果，便於最終預覽
+    results = []
 
-# 1. STOCK_DAY (個股日成交資訊)
-# 改以單獨的程式抓取資料
-#results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
+    # 1. STOCK_DAY (個股日成交資訊)
+    # 改以單獨的程式抓取資料
+    #results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
 
-# 2. MI_INDEX (所有類股成交統計)
-results.append(("MI_INDEX", fetch_twse_mi_index(TARGET_DATE))) 
+    # 2. MI_INDEX (所有類股成交統計)
+    results.append(("MI_INDEX", fetch_twse_mi_index(get_single_date))) 
 
-# 3. BWIBBU_d (類股日成交量值及報酬率)
-results.append(("BWIBBU_d", fetch_twse_bwibbu_d(TARGET_DATE))) 
+    # 3. BWIBBU_d (類股日成交量值及報酬率)
+    results.append(("BWIBBU_d", fetch_twse_bwibbu_d(get_single_date))) 
 
-# 4. MI_INDEX20 (收盤指數及成交量值資訊)
-results.append(("MI_INDEX20", fetch_twse_mi_index20(TARGET_DATE)))
+    # 4. MI_INDEX20 (收盤指數及成交量值資訊)
+    results.append(("MI_INDEX20", fetch_twse_mi_index20(get_single_date)))
 
-# 5. TWTASU (每日總成交量值與平均股價)
-results.append(("TWTASU", fetch_twse_twtasu(TARGET_DATE))) 
+    # 5. TWTASU (每日總成交量值與平均股價)
+    results.append(("TWTASU", fetch_twse_twtasu(get_single_date)))
 
-# 6. BFIAMU (自營商買賣超彙總表)
-results.append(("BFIAMU", fetch_twse_bfiamu(TARGET_DATE))) 
+    # 6. BFIAMU (自營商買賣超彙總表)
+    results.append(("BFIAMU", fetch_twse_bfiamu(get_single_date)))
 
-# 7. FMTQIK (每日券商成交量值總表)
-results.append(("FMTQIK", fetch_twse_fmtqik(TARGET_DATE)) )
+    # 7. FMTQIK (每日券商成交量值總表)
+    results.append(("FMTQIK", fetch_twse_fmtqik(get_single_date)))
 
-# 8. BFI82U (三大法人買賣超彙總表 - 日)
-results.append(("BFI82U", fetch_twse_bfi82u(TARGET_DATE)))
+    # 8. BFI82U (三大法人買賣超彙總表 - 日)
+    results.append(("BFI82U", fetch_twse_bfi82u(get_single_date)))
 
-# 9. TWT43U (外資及陸資買賣超彙總表)
-results.append(("TWT43U", fetch_twse_twt43u(TARGET_DATE)))
+    # 9. TWT43U (外資及陸資買賣超彙總表)
+    results.append(("TWT43U", fetch_twse_twt43u(get_single_date)))
 
-# 10. TWT44U (投信買賣超彙總表)
-results.append(("TWT44U", fetch_twse_twt44u(TARGET_DATE)))
+    # 10. TWT44U (投信買賣超彙總表)
+    results.append(("TWT44U", fetch_twse_twt44u(get_single_date)))
 
-# --- 最終結果預覽 ---
-print("\n" + "="*50)
-print("--- 10 個報告抓取結果摘要 ---")
-print("="*50)
-
-for name, df in results:
-    if df is not None:
-        print(f"\n[🟢 {name} (成功)] 數據筆數: {len(df)}")
-        # print(df.head().to_markdown(index=False)) # 註釋掉避免輸出過多
-    else:
-        print(f"[🔴 {name} (失敗)] 無數據或抓取錯誤。")
-
-# 增加日誌儲存：記錄本次嘗試抓取的日期
-log_summary_results(results, TARGET_DATE)
-
-print("\n所有 CSV 檔案已儲存至程式執行目錄下。")
-print("--- 程式執行結束 ---")
-
-
+    time.sleep(5)
