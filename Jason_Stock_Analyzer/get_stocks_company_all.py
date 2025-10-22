@@ -8,6 +8,8 @@ import sys
 from typing import Optional
 import numpy as np 
 from datetime import date
+import tkinter as tk 
+from tkinter import messagebox
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -20,6 +22,12 @@ HEADERS = {
 }
 
 # 定義目標資料夾路徑
+# 使用 try-except 處理在某些環境 (如 PyInstaller 打包) 中 os.path.abspath(__file__) 報錯
+try:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    BASE_DIR = os.getcwd() # 如果 __file__ 不存在，使用當前工作目錄
+
 OUTPUT_log_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "logs")
 OUTPUT_csv_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw")
 # 定義數據清理結果的日誌檔案名稱
@@ -154,7 +162,7 @@ def combine_and_save(output_dir, file_types):
         print(f"【成功】數據清理結果已記錄至日誌檔案：{log_file_path}")
     except Exception as e:
         print(f"【錯誤】寫入日誌檔案 {LOG_SUMMARY_FILENAME} 失敗: {e}")
-
+        return None # 寫日誌失敗也停止後續操作
 
     # 6. 儲存最終檔案 
     final_file_path = os.path.join(output_dir, 'stocks_all.csv')
@@ -174,6 +182,32 @@ def combine_and_save(output_dir, file_types):
             continue
     print("已清除暫存的 exchange_list.csv 和 counter_list.csv。\n")
     print("抓取資料已完成\n")
+    return summary_content # <--- 將日誌內容返回
+
+# 新增: 用視窗顯示日誌內容的函式
+def show_log_in_window(log_content: str):
+    """
+    使用 tkinter 建立一個簡單的視窗來顯示日誌內容。
+    """
+    if log_content:
+        # 創建主視窗
+        root = tk.Tk()
+        root.withdraw() # 隱藏主視窗
+        
+        # 使用 messagebox 顯示資訊，這是一個簡單、快速的方式
+        messagebox.showinfo(
+            "股票資料抓取結果", 
+            log_content
+        )
+        
+        # 銷毀視窗
+        root.destroy()
+    else:
+        # 如果日誌內容為空，則顯示一個錯誤或警告
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("執行錯誤", "無法取得數據清理結果日誌。")
+        root.destroy()
 
 if __name__ == '__main__':
     # 1. 爬取並儲存上市/上櫃資料
@@ -182,4 +216,7 @@ if __name__ == '__main__':
         list_stock(stock_type)
 
     # 2. 合併所有儲存的檔案並進行篩選與日誌記錄
-    combine_and_save(OUTPUT_csv_DIR, FILE_TYPES)
+    log_data = combine_and_save(OUTPUT_csv_DIR, FILE_TYPES)
+
+    # 3. 新增: 將日誌內容顯示在視窗中
+    show_log_in_window(log_data)

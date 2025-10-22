@@ -1,484 +1,225 @@
+# 【2025/10/13_上市、櫃公司股票名單】
 import requests
+from bs4 import BeautifulSoup
 import pandas as pd
-from io import StringIO
-import urllib3
-import re
-from datetime import date
-from typing import Optional, Tuple, List
-from pathlib import Path
 import os
-import utils.jason_utils as jutils
-import get_stocks_company_all 
-
-
-# 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
+import urllib3
+import sys
+from typing import Optional
+import numpy as np 
+from datetime import date
+# 新增: 引入 tkinter 函式庫
+import tkinter as tk 
+from tkinter import messagebox
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ==========================================================
-# 參數設定  --- 配置 (Configuration) ---
-# ==========================================================
-LOG_FETCH_DATE_FILENAME = "last_get_date.log" # 定義記錄上次成功抓取日期的日誌檔案名稱
-SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
 
-# 檢查檔案是否存在且確實是一個檔案 (非資料夾)
-def check_folder_and_create(folder_path: str):
-    """
-    參數:
-        file_path (str): 要檢查的檔案路徑。
-    回傳:
-        bool: 檔案存在時回傳 True；否則回傳 False。
-    """
-    OUTPUT_DIR, filename_new = jutils.get_path_to_folder_file(folder_path)
-    jutils.check_and_create_folder(OUTPUT_DIR)
-    jutils.check_file_exists(filename_new)
-    return True
+# ----- 全局設定 -----
+HEADERS = {
+    'content-type': 'text/html; charset=UTF-8',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                  'AppleWebKit/537.36 (KHTML, like Gecko) '
+                  'Chrome/76.0.3809.132 Safari/537.36'
+}
 
-# 共用的輔助函式，用於處理 TWSE 的 Big5 編碼和 Pandas 讀取邏輯。
-def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame]:
-    """
-    Args:
-        response_text: HTTP 請求回傳的文字內容 (Big5 編碼)。
-        header_row: CSV 檔案中資料表頭所在的行數 (0-indexed)。
-    Returns:
-        Optional[pd.DataFrame]: 處理後的 DataFrame。
-    """
-    try:
-        csv_data = StringIO(response_text)
-        # 嘗試讀取 CSV
-        df = pd.read_csv(
-            csv_data, 
-            header=header_row,          # 資料表頭所在的行數
-            skipinitialspace=True,      # 跳過分隔符後的空格
-            on_bad_lines='skip',        # 跳過格式不正確的行
-            encoding='Big5'             # 使用 Big5 編碼讀取
-        )
-        # TWSE 的 CSV 欄位名稱常有隱藏空格，導致 df.columns 無法正確匹配。
-        if not df.empty:
-            df.columns = df.columns.str.strip()
-        # 移除所有欄位皆為空的行
-        df = df.dropna(how='all')
-        # 移除資料尾部可能出現的彙總或備註行
-        if not df.empty and df.iloc[-1].astype(str).str.contains('合計|總計|備註', na=False).any():
-            df = df.iloc[:-1]
-        return df
-    except Exception as e:
-        print(f"在讀取或清理 CSV 數據時發生錯誤: {e}")
+# 定義目標資料夾路徑
+# 使用 try-except 處理在某些環境 (如 PyInstaller 打包) 中 os.path.abspath(__file__) 報錯
+try:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    BASE_DIR = os.getcwd() # 如果 __file__ 不存在，使用當前工作目錄
 
-        return None
-# 共用的輔助函式，用於發送 HTTP 請求並檢查狀態。
-def _fetch_twse_data(url: str) -> Optional[str]:
-    """
-    Args:
-        url: 完整的 TWSE 資料 URL。
-    Returns:
-        Optional[str]: 成功獲取後，以 Big5 解碼的文字內容。
-    """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+OUTPUT_log_DIR = os.path.join(BASE_DIR, "datas", "logs")
+OUTPUT_csv_DIR = os.path.join(BASE_DIR, "datas", "raw")
+# 定義數據清理結果的日誌檔案名稱
+LOG_SUMMARY_FILENAME = 'get_company_all.log'
+# --------------------
+
+def list_stock(input_type):
+    """爬取指定市場的股票清單，並儲存為 CSV 檔案。"""
+    list_stocks = {
+        'exchange': 'https://isin.twse.com.tw/isin/C_public.jsp?strMode=2',  # 上市
+        'counter': 'https://isin.twse.com.tw/isin/C_public.jsp?strMode=4'  # 上櫃
     }
+    
+    file_path = os.path.join(OUTPUT_csv_DIR, f'{input_type}_list.csv')
+    print(f"--- 開始爬取 {input_type} 資料 ---")
+    
     try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        response.raise_for_status() 
-        response.encoding = 'Big5'
-        return response.text
-    except requests.exceptions.HTTPError as errh:
-        print(f"❌ HTTP 錯誤：{errh} (該日可能無交易資料)")
-    except requests.exceptions.RequestException as err:
-        print(f"❌ 連線或 Requests 錯誤: {err}")
+        getdata = requests.get(list_stocks[input_type], headers=HEADERS, verify=False, timeout=10)
+        getdata.encoding = 'ms950'
+        soup = BeautifulSoup(getdata.text, 'html.parser')
+        table = soup.find('table', class_='h4')
+    except requests.exceptions.RequestException as e:
+        print(f"【錯誤】網路請求失敗：{e}")
+        return
     except Exception as e:
-        print(f"❌ 發生其他錯誤: {e}")
+        print(f"【錯誤】處理 {input_type} 資料時發生錯誤: {e}")
+        return
 
-    return None
+    if table is None:
+        print(f"【注意】{input_type} 網頁找不到表格，請檢查網頁結構或 class 名稱。")
+        return
 
-#】將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
-def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch_date: str, summary_filename_prefix: str = SUMMARY_LOG_FILENAME_PREFIX):
-    BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
-    OUTPUT_DIR = BASE_DIR / "datas" / "logs"
+    # 解析表格內容
+    datalist = []
+    for col in table.find_all('tr'):
+        datalist.append([row.text.strip() for row in col.find_all('td')]) # 新增 .strip() 清除空白
 
-    # 確保日誌資料夾存在
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    
-    log_file_name = f"{summary_filename_prefix}_{fetch_date}.log"
-    filename_new = OUTPUT_DIR / log_file_name 
-    
-    # 建立摘要內容字串
-    summary_lines = []
-    
-    header = "\n" + "="*50 + "\n"
-    header += f"--- {fetch_date} 報告抓取結果摘要 ---\n"
-    header += "="*50
-    summary_lines.append(header)
-    
-    success_count = 0
-    fail_count = 0
+    # 處理第一欄位合併問題 (將代號和名稱分離)
+    for deal_str in datalist[1:]:
+        if len(deal_str) == 7:
+            # TWSE 使用全形空格 \u3000 分隔代號與名稱
+            parts = deal_str[0].split('\u3000', 1) 
+            if len(parts) == 2:
+                deal_str[0] = parts[0].strip()
+                deal_str.insert(1, parts[1].strip())
 
-    for name, df in results:
-        if df is not None:
-            line = f"\n[🟢 {name} (成功)] 數據筆數: {len(df)}"
-            success_count += 1
-        else:
-            line = f"[🔴 {name} (失敗)] 無數據或抓取錯誤。"
-            fail_count += 1
-        summary_lines.append(line)
+    title = [
+        '有價證券代號',
+        '有價證券名稱',
+        '國際證券辨識號碼(ISIN Code)',
+        '上市日',
+        '市場別',
+        '產業別',
+        'CFICode',
+        '備註'
+    ]
 
-    footer = "\n" + "="*50
-    footer += f"\n總結：成功 {success_count} 個報告, 失敗 {fail_count} 個報告。"
-    footer += "\n所有成功抓取的 CSV 檔案已儲存至對應的 'datas/raw' 子資料夾中。"
-    footer += "\n--- 日誌記錄結束 ---\n"
-    
-    summary_lines.append(footer)
-    
-    log_content = "\n".join(summary_lines)
+    df = pd.DataFrame(datalist[1:], columns=title)
+    df.to_csv(file_path, index=False, encoding='utf-8-sig')
+    print(f'【成功】{file_path} 已儲存。\n')
 
-    # 寫入日誌檔案
+
+def combine_and_save(output_dir, file_types) -> Optional[str]:
+    """
+    讀取多個 CSV 檔案，合併、篩選「產業別」空白的公司，並儲存為一個總檔案，
+    同時將清理結果寫入日誌檔案。
+
+    Returns:
+        Optional[str]: 數據清理結果的日誌內容 (summary_content)，如果失敗則返回 None。
+    """
+    print("\n--- 開始合併檔案與數據清理 ---")
+    all_data = []
+    
+    # 檢查並建立輸出資料夾 (針對 output_dir, 也就是 datas/raw)
+    if not os.path.exists(output_dir):
+        try:
+            os.makedirs(output_dir)
+            print(f"已建立資料夾: {output_dir}")
+        except Exception as e:
+            print(f"【錯誤】無法建立資料夾 {output_dir}: {e}")
+            return None
+    
+    for input_type in file_types:
+        file_path = os.path.join(output_dir, f'{input_type}_list.csv')
+        
+        if not os.path.exists(file_path):
+            print(f"【警告】找不到檔案：{file_path}，跳過合併。")
+            continue
+            
+        try:
+            # 讀取檔案時，將空白字串替換為 NaN，以便 Pandas 識別為缺失值
+            df = pd.read_csv(file_path, na_values=['', ' '], keep_default_na=True)
+            all_data.append(df)
+            print(f"已讀取 {input_type}_list.csv ({len(df)} 筆資料)")
+        except Exception as e:
+            print(f"【錯誤】讀取 {input_type}_list.csv 時發生錯誤: {e}")
+
+    if not all_data:
+        print("沒有任何檔案可供合併。")
+        return None
+
+    # 1. 合併所有 DataFrame
+    combined_df = pd.concat(all_data, ignore_index=True)
+    initial_rows = len(combined_df)
+    
+    # 2. 【核心篩選】刪除「產業別」欄位為空白（NaN 或空字串）的列
+    # subset 參數指定只對 '產業別' 欄位進行空值檢查
+    combined_df = combined_df.dropna(subset=['產業別'])
+    
+    final_rows = len(combined_df)
+    
+    # 3. 格式化數據清理結果
+    summary_content = (
+        f"【{date.today().strftime("%Y年%m月%d日")}_上市、櫃公司股票名單】:\n"
+        f"   原始總筆數: {initial_rows}\n"
+        f"   刪除無產業別筆數: {initial_rows - final_rows}\n"
+        f"   最終總筆數: {final_rows}"
+    )
+    
+    # 4. 打印清理結果到控制台
+    print(f"\n{summary_content}")
+    
+    # 5. 寫入日誌檔案
+    log_file_path = os.path.join(OUTPUT_log_DIR, LOG_SUMMARY_FILENAME)
     try:
-        with open(filename_new, 'w', encoding='utf-8') as f:
-            f.write(log_content)
-        
-        # 同時列印到控制台
-        print(log_content)
-        print(f"[日誌] 成功將摘要結果寫入檔案：{filename_new}")
+        # 檢查並建立 logs 資料夾 (LOGS資料夾需要獨立檢查)
+        if not os.path.exists(OUTPUT_log_DIR):
+            os.makedirs(OUTPUT_log_DIR)
+            
+        with open(log_file_path, 'w', encoding='utf-8') as f:
+            f.write(summary_content)
+        print(f"【成功】數據清理結果已記錄至日誌檔案：{log_file_path}")
     except Exception as e:
-        print(f"❌ 寫入摘要日誌檔案發生錯誤: {e}")
+        print(f"【錯誤】寫入日誌檔案 {LOG_SUMMARY_FILENAME} 失敗: {e}")
+        return None # 寫日誌失敗也停止後續操作
 
-
-# --- 10 大 TWSE 報告抓取函式 (分頁與個股) ---
-def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFrame]:
-    """
-    (1/10) 抓取指定日期和股票代號的 STOCK_DAY 報告 (每日成交資訊)。
-    URL: https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
-    url = f"{base_url}?date={target_date}&stockNo={stock_no}&response=csv"
-
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "1_STOCK_DAY")
-    filename = OUTPUT_DIR + f"\\{target_date}_{stock_no}_STOCK_DAY.csv"
-
-    check_folder_and_create(filename)
-
-    print(f"嘗試抓取 (1/10) {stock_no} STOCK_DAY 資料...")
-    response_text = _fetch_twse_data(url)
+    # 6. 儲存最終檔案 
+    final_file_path = os.path.join(output_dir, 'stocks_all.csv')
+    combined_df.to_csv(final_file_path, index=False, encoding='utf-8-sig')
     
-    if response_text is None: return None
-    
-    df = _read_twse_csv(response_text, header_row=1)
-    if df is not None and '日期' in df.columns:
-        df = df[df['日期'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (1/10) {filename} 儲存成功。")
-        return df
-    return None
+    print("=" * 35)
+    print(f"【成功】所有資料已篩選、合併並儲存至:")
+    print(f"{final_file_path}")
+    print("=" * 35)
 
-def fetch_twse_mi_index(target_date: str) -> Optional[pd.DataFrame]:
+    # (可選) 刪除暫存的單一市場檔案
+    for input_type in file_types:
+        try:
+            os.remove(os.path.join(output_dir, f'{input_type}_list.csv'))
+        except OSError as e:
+            # print(f"【警告】清除暫存檔案 {input_type}_list.csv 失敗: {e}")
+            continue
+    print("已清除暫存的 exchange_list.csv 和 counter_list.csv。\n")
+    print("抓取資料已完成\n")
+
+    return summary_content # <--- 將日誌內容返回
+
+# 新增: 用視窗顯示日誌內容的函式
+def show_log_in_window(log_content: str):
     """
-    (2/10) 抓取指定日期的 MI_INDEX 報告 (所有類股成交統計)。
-    URL: https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX
+    使用 tkinter 建立一個簡單的視窗來顯示日誌內容。
     """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
-    url = f"{base_url}?date={target_date}&type=ALLBUT0999&response=csv"
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "2_MI_INDEX")
-    filename = OUTPUT_DIR + f"\\{target_date}_MI_INDEX_Sector.csv"
-
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (2/10) MI_INDEX (類股統計) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-
-    # MI_INDEX 報表的表頭在索引 3
-    df = _read_twse_csv(response_text, header_row=1)
-
-    if df is not None and '指數' in df.columns:
-        df = df[df['指數'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (2/10) {filename} 儲存成功。")
-        return df
-    return None
-
-def fetch_twse_bwibbu_d(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (3/10) 抓取指定日期的 BWIBBU_d 報告 (發行量加權股價指數類股日成交量值及報酬率)。
-    URL: https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d"
-    url = f"{base_url}?date={target_date}&selectType=ALL&response=csv"
-    
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "3_BWIBBU_d")
-    filename = OUTPUT_DIR + f"\\{target_date}_BWIBBU_d_IndexReturn.csv"
-
-    check_folder_and_create(filename)
+    if log_content:
+        # 創建主視窗
+        root = tk.Tk()
+        root.withdraw() # 隱藏主視窗
         
-    print(f"嘗試抓取 (3/10) BWIBBU_d (類股報酬率) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-
-    # BWIBBU_d 報表的表頭在索引 3
-    df = _read_twse_csv(response_text, header_row=1)
-
-    if df is not None and '證券代號' in df.columns:
-        df = df[df['證券代號'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (3/10) {filename} 儲存成功。")
-        return df
-    return None
-
-def fetch_twse_mi_index20(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (4/10) 抓取指定日期的 MI_INDEX20 報告 (收盤指數及成交量值資訊)。
-    URL: https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX20
-    
-    **修正:** 表頭索引改為 2 (原為 1)。
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX20"
-    url = f"{base_url}?date={target_date}&response=csv"
+        # 使用 messagebox 顯示資訊，這是一個簡單、快速的方式
+        messagebox.showinfo(
+            "股票資料抓取結果", 
+            log_content
+        )
         
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "4_MI_INDEX20")
-    filename = OUTPUT_DIR + f"\\{target_date}_MI_INDEX20_Market.csv"
-    
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (4/10) MI_INDEX20 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-    
-    # MI_INDEX20 報表的表頭在索引 2
-    df = _read_twse_csv(response_text, header_row=1)
+        # 銷毀視窗
+        root.destroy()
+    else:
+        # 如果日誌內容為空，則顯示一個錯誤或警告
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("執行錯誤", "無法取得數據清理結果日誌。")
+        root.destroy()
 
-    if df is not None and '證券代號' in df.columns:
-        df = df[df['證券代號'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (4/10) {filename} 儲存成功。")
-        return df
-    return None
 
-def fetch_twse_twtasu(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (5/10) 抓取指定日期的 TWTASU 報告 (每日總成交量值與平均股價)。
-    URL: https://www.twse.com.tw/rwd/zh/afterTrading/TWTASU
-    
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/TWTASU"
-    url = f"{base_url}?date={target_date}&response=csv"
-    
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "5_TWTASU")
-    filename = OUTPUT_DIR + f"\\{target_date}_TWTASU_VolumePrice.csv"
+if __name__ == '__main__':
+    # 1. 爬取並儲存上市/上櫃資料
+    FILE_TYPES = ['exchange', 'counter']
+    for stock_type in FILE_TYPES:
+        list_stock(stock_type)
 
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (5/10) TWTASU (總量值) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
+    # 2. 合併所有儲存的檔案並進行篩選與日誌記錄，並取得日誌內容
+    log_data = combine_and_save(OUTPUT_csv_DIR, FILE_TYPES)
 
-    # TWTASU 報表的表頭在索引 3
-    df = _read_twse_csv(response_text, header_row=2)
-   
-    if df is not None and '證券名稱' in df.columns: 
-        df = df[df['證券名稱'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (5/10) {filename} 儲存成功。")
-        return df
-    return None
-
-def fetch_twse_bfiamu(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (6/10) 抓取指定日期的 BFIAMU 報告 (自營商買賣超彙總表)。
-    URL: https://www.twse.com.tw/rwd/zh/afterTrading/BFIAMU
-    
-    **修正:** 表頭索引改為 3 (原為 2)。
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/BFIAMU"
-    url = f"{base_url}?date={target_date}&response=csv"
-    
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "6_BFIAMU")
-    filename = OUTPUT_DIR + f"\\{target_date}_BFIAMU_DealerTrade.csv"
-
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (6/10) BFIAMU (自營商買賣超) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-
-    # BFIAMU 報表的表頭在索引 3
-    df = _read_twse_csv(response_text, header_row=1)
-
-    if df is not None and '分類指數名稱' in df.columns:
-        df = df.dropna(how='all') 
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (6/10) {filename} 儲存成功。")
-        return df
-    return None
-
-def fetch_twse_fmtqik(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (7/10) 抓取指定日期的 FMTQIK 報告 (每日券商成交量值總表)。
-    URL: https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK
-    
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK"
-    url = f"{base_url}?date={target_date}&response=csv"
-    
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "7_FMTQIK")
-    filename = OUTPUT_DIR + f"\\{target_date}_FMTQIK_BrokerVolume.csv"
-
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (7/10) FMTQIK (券商成交總表) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-
-    # FMTQIK 報表的表頭在索引 2
-    df = _read_twse_csv(response_text, header_row=1)
-
-    if df is not None and '日期' in df.columns:
-        df = df[df['日期'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (7/10) {filename} 儲存成功。")
-        return df
-    return None
-
-# --- 10 大 TWSE 報告抓取函式 (三大法人) ---
-
-def fetch_twse_bfi82u(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (8/10) 抓取指定日期的 BFI82U 報告 (三大法人買賣超彙總表 - 日)。
-    URL: https://www.twse.com.tw/rwd/zh/fund/BFI82U
-    
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/fund/BFI82U"
-    # 只使用 dayDate 進行日期參數模組化
-    url = f"{base_url}?type=day&dayDate={target_date}&response=csv"
-        
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "8_BFI82U")
-    filename = OUTPUT_DIR + f"\\{target_date}_BFI82U_3IParty_Day.csv"
-
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (8/10) BFI82U (三大法人日報) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-
-    # BFI82U 報表的表頭在索引 3
-    df = _read_twse_csv(response_text, header_row=1)
-
-    if df is not None and '單位名稱' in df.columns:
-        df = df[df['單位名稱'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (8/10) {filename} 儲存成功。")
-        return df
-    return None
-
-def fetch_twse_twt43u(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (9/10) 抓取指定日期的 TWT43U 報告 (外資及陸資買賣超彙總表)。
-    URL: https://www.twse.com.tw/rwd/zh/fund/TWT43U
-    
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/fund/TWT43U"
-    url = f"{base_url}?date={target_date}&response=csv"
-
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "9_TWT43U")
-    filename = OUTPUT_DIR + f"\\{target_date}_TWT43U_ForeignTrade.csv"
-
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (9/10) TWT43U (外資買賣超) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-
-    # TWT43U 報表的表頭在索引 3
-    df = _read_twse_csv(response_text, header_row=2)
-
-    if df is not None and '證券代號' in df.columns:
-        df = df[df['證券代號'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (9/10) {filename} 儲存成功。")
-        return df
-    return None
-
-def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
-    """
-    (10/10) 抓取指定日期的 TWT44U 報告 (投信買賣超彙總表)。
-    URL: https://www.twse.com.tw/rwd/zh/fund/TWT44U
-    """
-    if not re.fullmatch(r'\d{8}', target_date): return None
-    base_url = "https://www.twse.com.tw/rwd/zh/fund/TWT44U"
-    url = f"{base_url}?date={target_date}&response=csv"
-    
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "10_TWT44U")
-    filename = OUTPUT_DIR + f"\\{target_date}_TWT44U_InvestmentTrust.csv"
-
-    check_folder_and_create(filename)
-    
-    print(f"嘗試抓取 (10/10) TWT44U (投信買賣超) 資料...")
-    response_text = _fetch_twse_data(url)
-    if response_text is None: return None
-
-    df = _read_twse_csv(response_text, header_row=1)
-
-    if df is not None and '證券代號' in df.columns:
-        df = df[df['證券代號'].astype(str).str.strip() != '']
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ (10/10) {filename} 儲存成功。")
-        return df
-    return None
-
-# --- 範例使用 (模組化參數化並呼叫所有 10 個函式) ---
-
-# 設定您想要抓取的目標日期 (只需修改此處即可抓取所有報告的資料)
-# 1. 取得今天的日期並格式化為 YYYYMMDD
-
-TARGET_END_DATE = date.today().strftime("%Y%m%d") 
-TARGET_STOCK = "2330" # 台灣積體電路製造
-MIN_START_DATE_STR = '20250101'
-for single_date in pd.date_range(start="20250101", end=TARGET_END_DATE):
-
-    get_single_date = single_date.strftime("%Y%m%d")
-    print("\n" + "="*50)
-    print("--- 程式開始執行：TWSE 10 大報告批量抓取 ---")
-    print(f"🎯 目標查詢日期: {get_single_date} | 股票代號: {TARGET_STOCK}")
-    print("="*50 + "\n")
-
-    # 設置一個列表來儲存結果，便於最終預覽
-    results = []
-
-    # 1. STOCK_DAY (個股日成交資訊)
-    # 改以單獨的程式抓取資料
-    #results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
-
-    # 2. MI_INDEX (所有類股成交統計)
-    results.append(("MI_INDEX", fetch_twse_mi_index(get_single_date))) 
-
-    # 3. BWIBBU_d (類股日成交量值及報酬率)
-    results.append(("BWIBBU_d", fetch_twse_bwibbu_d(get_single_date))) 
-
-    # 4. MI_INDEX20 (收盤指數及成交量值資訊)
-    results.append(("MI_INDEX20", fetch_twse_mi_index20(get_single_date)))
-
-    # 5. TWTASU (每日總成交量值與平均股價)
-    results.append(("TWTASU", fetch_twse_twtasu(get_single_date)))
-
-    # 6. BFIAMU (自營商買賣超彙總表)
-    results.append(("BFIAMU", fetch_twse_bfiamu(get_single_date)))
-
-    # 7. FMTQIK (每日券商成交量值總表)
-    results.append(("FMTQIK", fetch_twse_fmtqik(get_single_date)))
-
-    # 8. BFI82U (三大法人買賣超彙總表 - 日)
-    results.append(("BFI82U", fetch_twse_bfi82u(get_single_date)))
-
-    # 9. TWT43U (外資及陸資買賣超彙總表)
-    results.append(("TWT43U", fetch_twse_twt43u(get_single_date)))
-
-    # 10. TWT44U (投信買賣超彙總表)
-    results.append(("TWT44U", fetch_twse_twt44u(get_single_date)))
-
-    time.sleep(5)
+    # 3. 新增: 將日誌內容顯示在視窗中
+    show_log_in_window(log_data)

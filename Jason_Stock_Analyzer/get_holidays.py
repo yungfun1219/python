@@ -3,11 +3,11 @@ import requests
 import os
 from io import StringIO
 from typing import Optional
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
+# from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from datetime import date # 引入 date 以便使用
 
 # 抑制發出 verify=False 相關的警告
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+# requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 # --- 函式：生成全年度週末日期清單 ---
 def generate_full_year_weekend_dates(year: int) -> list[str]:
@@ -38,6 +38,41 @@ def generate_full_year_weekend_dates(year: int) -> list[str]:
         print(f"❌ 生成日期清單時發生錯誤: {e}")
         return []
 # --- 結束函式 ---
+
+# 新增：儲存日期清單到 CSV 檔案的函式
+def save_dates_to_csv(dates_list: list[str], year: int, filename: str = 'weekend_dates.csv'):
+    """
+    將日期清單儲存為 CSV 檔案。
+    
+    Args:
+        dates_list (list[str]): 要儲存的日期清單。
+        year (int): 生成日期的年份 (用於檔案命名或日誌)。
+        filename (str): 儲存的檔案名稱 (預設為 'weekend_dates.csv')。
+    """
+    if not dates_list:
+        print("【警告】日期清單為空，不執行儲存操作。")
+        return
+
+    try:
+        # 建立 DataFrame
+        # 這裡假設您希望 CSV 檔案只有一欄，欄位名稱為 'Date'
+        df = pd.DataFrame(dates_list, columns=['Date'])
+        
+        # 定義檔案路徑，儲存在當前目錄
+        file_path = os.path.join(os.getcwd(), f"{year}_{filename}")
+        
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "twse_holidays" , f"{year}_{filename}")
+        # 儲存為 CSV 檔案
+        # index=False 表示不寫入行索引
+        # encoding='utf-8-sig' 可確保中文或特殊字元在 Excel 中正確顯示
+        df.to_csv(file_path, index=False, encoding='utf-8-sig')
+        
+        print(f"\n💾 成功將 {len(dates_list)} 筆週末日期儲存到 CSV 檔案。")
+        print(f"檔案路徑: {file_path}")
+        
+    except Exception as e:
+        print(f"【錯誤】儲存 CSV 檔案時發生錯誤: {e}")
+
 
 def fetch_twse_holidays(year: int) -> Optional[pd.DataFrame]:
     """
@@ -127,19 +162,22 @@ def format_chinese_date(md_str: str) -> str:
 # --- 主程式執行區 ---
 if __name__ == '__main__':
     
-    
-    # 抓取 TWSE 休市日期，從2021年(110年開始)
+    # 抓取 TWSE 休市日期，從2021年(110年開始)，因為TWSE僅提供近幾年的資料
     start_year = 2021
     end_year = date.today().year
     
     for get_year in range(start_year, end_year+1):
-        
+        # ----------------------------------------------------
+        # 抓取並儲存 TWSE 休市日期資料，每年一次 
         holidays_df = fetch_twse_holidays(get_year)
-
+        save_dataframe_to_csv(holidays_df, get_year)
+        
+        # ----------------------------------------------------
+        # 生成並取得全年度週末日期清單
         full_year_weekend_list = generate_full_year_weekend_dates(get_year)
         
-        print(full_year_weekend_list)
-        save_dataframe_to_csv(holidays_df, get_year)
+        save_dates_to_csv(full_year_weekend_list, get_year, filename='weekend_calendar.csv') 
+        
         # ----------------------------------------------------
 
         # if holidays_df is not None and not holidays_df.empty:
