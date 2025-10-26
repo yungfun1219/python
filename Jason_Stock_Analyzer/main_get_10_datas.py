@@ -64,6 +64,7 @@ def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame
         print(f"在讀取或清理 CSV 數據時發生錯誤: {e}")
 
         return None
+
 # 共用的輔助函式，用於發送 HTTP 請求並檢查狀態。
 def _fetch_twse_data(url: str) -> Optional[str]:
     """
@@ -89,7 +90,7 @@ def _fetch_twse_data(url: str) -> Optional[str]:
 
     return None
 
-#】將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
+# 將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
 def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch_date: str, summary_filename_prefix: str = SUMMARY_LOG_FILENAME_PREFIX):
     BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
     OUTPUT_DIR = BASE_DIR / "datas" / "logs"
@@ -139,7 +140,6 @@ def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch
         print(f"[日誌] 成功將摘要結果寫入檔案：{filename_new}")
     except Exception as e:
         print(f"❌ 寫入摘要日誌檔案發生錯誤: {e}")
-
 
 # --- 10 大 TWSE 報告抓取函式 (分頁與個股) ---
 def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFrame]:
@@ -343,7 +343,6 @@ def fetch_twse_fmtqik(target_date: str) -> Optional[pd.DataFrame]:
     return None
 
 # --- 10 大 TWSE 報告抓取函式 (三大法人) ---
-
 def fetch_twse_bfi82u(target_date: str) -> Optional[pd.DataFrame]:
     """
     (8/10) 抓取指定日期的 BFI82U 報告 (三大法人買賣超彙總表 - 日)。
@@ -436,12 +435,12 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
 # 1. 取得今天的日期並格式化為 YYYYMMDD
 
 TARGET_DATE = date.today().strftime("%Y%m%d") 
-TARGET_STOCK = "2330" # 台灣積體電路製造
-TARGET_DATE = "20250108"  # 測試用特定日期
+#TARGET_STOCK = "2330" # 台灣積體電路製造
+TARGET_DATE = "20251023"  # 測試用特定日期
 
 print("\n" + "="*50)
 print("--- 程式開始執行：TWSE 10 大報告批量抓取 ---")
-print(f"🎯 目標查詢日期: {TARGET_DATE} | 股票代號: {TARGET_STOCK}")
+#print(f"🎯 目標查詢日期: {TARGET_DATE} | 股票代號: {TARGET_STOCK}")
 print("="*50 + "\n")
 
 # 設置一個列表來儲存結果，便於最終預覽

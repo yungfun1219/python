@@ -7,6 +7,8 @@ import urllib3
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 import sys
+import pathlib
+from dotenv import load_dotenv # ➊ 匯入Line機器人函式庫
 
 # 關閉 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -15,14 +17,13 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # 參數設定
 # ==========================================================
 # 股票清單 CSV 檔案路徑 (用於查詢上市日，通常是 stocks_all.csv)
-LIST_FILE_PATH = r'D:\Python_repo\python\選股投資策略\stock_data\raw\stocks_all.csv'
+BASE_DIR = pathlib.Path(__file__).resolve().parent 
+LIST_FILE_PATH = BASE_DIR / "datas" / "raw" / "stocks_all.csv"
+RAW_DATA_DIR = BASE_DIR / "datas" / "raw" / "1_STOCK_DAY"
+
 # 批量處理時，此變數將被清單中的代號取代
 TARGET_CODE = '1101' 
 MIN_START_DATE_STR = '2025/10/01'
-
-# 資料夾設定
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep
-RAW_DATA_DIR = os.path.join(BASE_DIR, 'stock_data', 'raw', 'indi_stocks')
 
 # 欄位名稱設定
 CODE_COL = '有價證券代號'
@@ -30,6 +31,7 @@ LIST_DATE_COL = '上市日'
 # ==========================================================
 
 
+#從指定的 CSV 檔案中讀取並回傳所有證券代號的列表。
 def get_all_stock_codes(file_path, code_col_name):
     """
     從指定的 CSV 檔案中讀取並回傳所有證券代號的列表。
@@ -56,7 +58,87 @@ def get_all_stock_codes(file_path, code_col_name):
         print(f"【錯誤】讀取或處理股票清單時發生錯誤：{e}")
         return []
 
+# 刪除指定 CSV 檔案中屬於當前月份的所有資料。
+def delete_current_month_data(file_path: str, date_column_name: str = '日期') -> bool:
+    """
+    刪除指定 CSV 檔案中屬於當前月份的所有資料。
 
+    Args:
+        file_path (str): 股票數據 CSV 檔案的完整路徑。
+        date_column_name (str): 檔案中日期欄位的名稱 (預設為 '日期')。
+
+    Returns:
+        bool: 刪除並儲存成功返回 True，否則返回 False。
+    """
+    print(f"--- 開始處理檔案: {os.path.basename(file_path)} ---")
+
+    if not os.path.exists(file_path):
+        print(f"【錯誤】檔案未找到: {file_path}")
+        return False
+
+    # 1. 確定當前月份 (以當前時間為準)
+    current_date = date.today()
+    current_year_month = current_date.strftime('%Y%m')
+
+    print(f"當前月份識別碼: {current_year_month}。將刪除此月份的所有資料。")
+    
+    try:
+        # 2. 讀取 CSV 檔案
+        # 假設您的 CSV 使用 utf-8-sig 編碼儲存
+        df = pd.read_csv(file_path, encoding='utf-8-sig')
+
+        if df.empty:
+            print("【警告】檔案內容為空，無需操作。")
+            return True
+
+        if date_column_name not in df.columns:
+            print(f"【錯誤】找不到日期欄位: '{date_column_name}'。請檢查欄位名稱。")
+            return False
+
+        # 3. 轉換日期並建立月份識別欄位
+        # errors='coerce' 可將轉換失敗的值設為 NaT
+        df['dt_date'] = pd.to_datetime(df[date_column_name], errors='coerce')
+        
+        # 建立一個 YYYYMM 格式的欄位用於篩選
+        df['YYYYMM'] = df['dt_date'].dt.strftime('%Y%m')
+
+        # 4. 篩選出【非當前月份】的資料
+        # 邏輯：保留所有 YYYYMM 不等於 current_year_month 的行
+        df_filtered = df[df['YYYYMM'] != current_year_month]
+        
+        # 5. 清理輔助欄位
+        df_filtered = df_filtered.drop(columns=['dt_date', 'YYYYMM'])
+
+        rows_deleted = len(df) - len(df_filtered)
+
+        if rows_deleted > 0:
+            # 6. 回存數據到原檔案
+            df_filtered.to_csv(file_path, index=False, encoding='utf-8-sig')
+            print(f"✅ 成功刪除 {rows_deleted} 筆屬於 {current_year_month} 月份的資料。")
+            print(f"   檔案已更新並回存: {file_path}")
+            return True
+        else:
+            print("【訊息】檔案中沒有找到當前月份的資料，無需更新。")
+            return True
+
+    except Exception as e:
+        print(f"【錯誤】在刪除數據時發生例外: {e}")
+        return False
+
+# Line機器人
+def send_stock_notification(user_id, message_text):
+        try:
+            push_message_request = PushMessageRequest(
+                to=user_id,
+                messages=[TextMessage(text=message_text)]
+            )
+            # 注意：這裡使用全域變數 messaging_api，如果初始化失敗，這裡會報錯
+            messaging_api.push_message(push_message_request) 
+            print(f"訊息已成功發送給 {user_id}")
+        except Exception as e:
+            print(f"其他錯誤: {e}")
+
+# 這個類別封裝了處理單一股票所需的所有邏輯和狀態
 class StockDataProcessor:
     """
     處理單一股票上市日查詢、日期序列生成、歷史股價爬取與資料清洗的類別。
@@ -250,15 +332,53 @@ class StockDataProcessor:
         
         print(f"【程序完成】股票 {self.target_code} ({self.stock_name}) 的歷史資料已更新。\n")
 
-
 # ----------------------------------------------------------------------
 # 批次執行主程序
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
     
+    # --------  Line機器人訊息 -------
+    # ➋ 載入 line_API.env 檔案中的變數
+    # 注意：如果您使用 .env 以外的檔名 (如 line_token.env)，需要指定檔名
+    load_dotenv(r"D:\Python_repo\python\Jason_Stock_Analyzer\line_API.env") 
+
+    # ➌ 從環境變數中讀取 Token 和 User ID
+    LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+    LINE_USER_ID = os.getenv("LINE_USER_ID")
+
+
+    # 修正 LineBotApiError 的匯入路徑（根據您上一個問題的解答）
+    from linebot.v3.messaging import Configuration, ApiClient, MessagingApi
+    from linebot.v3.messaging import TextMessage, PushMessageRequest
+
+
+    # ----------------- 檢查 Token 是否存在 -----------------
+    if not LINE_CHANNEL_ACCESS_TOKEN:
+        print("錯誤：LINE_CHANNEL_ACCESS_TOKEN 未在 line_API.env 中設置或讀取失敗。程式中止。")
+        exit()
+
+    try:
+        # 初始化 Configuration 和 MessagingApi
+        configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
+        api_client = ApiClient(configuration)
+        messaging_api = MessagingApi(api_client)
+        print("Line Bot API 初始化成功。")
+    except Exception as e:
+        print(f"Line Bot API 初始化失敗，請檢查 Token：{e}")
+
+    # ... 接下來的程式碼保持不變 ...
+    # 這是接收訊息的用戶 ID 或群組 ID
+    # LINE_USER_ID 現在已經從 .env 檔案中讀取
+
+    # Line機器人範例執行
+    #analysis_report = "台積電 (2330) 近期走勢強勁，RSI 位於 65，預期短期內仍有上漲動能。"
+    #send_stock_notification(LINE_USER_ID, analysis_report)
+#--------------------------------
+
     # 1. 取得所有股票代號清單
     all_codes = get_all_stock_codes(LIST_FILE_PATH, CODE_COL)
     
+    print(all_codes)
     if not all_codes:
         print("沒有有效的股票代號清單，程式終止。")
         sys.exit(1)
@@ -278,12 +398,31 @@ if __name__ == '__main__':
             target_code=code,
             list_file_path=LIST_FILE_PATH
         )
+        #FILE_TO_CLEAN = r"D:\Python_repo\python\Jason_Stock_Analyzer\datas\raw\1_STOCK_DAY\1101_台泥_stock.csv"
+        #file_name = f"{code}_{CODE_COL}_stock.csv"
+        #FILE_TO_CLEAN = RAW_DATA_DIR / file_name
+
+        # 執行清除操作
+        success = delete_current_month_data(LIST_FILE_PATH)
+
+        # 判斷執行結果
+        if success:
+            print("\n資料清理程序執行完成。")
+        else:
+            print("\n資料清理程序執行失敗。")
+
+
         # 執行單一股票的完整流程
         processor.run()
         
         # 為了避免連續請求過快，在處理完一檔股票後增加較長的延遲
         time.sleep(5) 
-
-    print("\n========================================================")
+         
+        
+    print("\n======================================================")
     print("所有股票數據批量處理任務已完成！")
     print("========================================================")
+
+     # Line機器人範例執行
+    analysis_report = f"所有股票數據批量抓取任務已完成！"
+    send_stock_notification(LINE_USER_ID, analysis_report)

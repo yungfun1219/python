@@ -438,8 +438,8 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
 TARGET_END_DATE = date.today().strftime("%Y%m%d") 
 TARGET_STOCK = "2330" # 台灣積體電路製造
 #TARGET_DATE = "20251008"  # 測試用特定日期
-MIN_START_DATE_STR = '2025/01/01'
-for single_date in pd.date_range(start="20250101", end=TARGET_END_DATE):
+MIN_START_DATE_STR = '2025/09/01'
+for single_date in pd.date_range(start="2025090101", end=TARGET_END_DATE):
 
     get_single_date = single_date.strftime("%Y%m%d")
     print("\n" + "="*50)
