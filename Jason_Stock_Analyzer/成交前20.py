@@ -1,18 +1,16 @@
 import pandas as pd
 from dotenv import load_dotenv # ➊ 匯入Line機器人函式庫
 import os
-from datetime import date
+from datetime import date, datetime 
 from pathlib import Path
-from typing import Union
 import schedule
-from datetime import datetime
 import time
 import keyboard  # 新增: 用於偵測鍵盤輸入
 import requests
 from io import StringIO
 import urllib3
 import re
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union
 import utils.jason_utils as jutils
 from google import genai
 from google.genai.errors import APIError
@@ -242,8 +240,8 @@ def main_run():
     # 您指定的檔案路徑
 
     FILE_PATH = BASE_DIR / "datas" / "processed" / "get_holidays" / "holidays_all.csv"
-    #DATE_TO_CHECK = date.today().strftime("%Y/%m/%d") 
-    DATE_TO_CHECK = '2025/10/07' 
+    DATE_TO_CHECK = date.today().strftime("%Y/%m/%d") 
+    #DATE_TO_CHECK = '2025/10/07' 
     DATE_COLUMN = '日期' # 根據您前面的程式碼，合併後的欄位名稱應為 '日期'
 
     # 執行檢查
