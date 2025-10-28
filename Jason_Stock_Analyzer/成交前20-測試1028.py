@@ -187,6 +187,7 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         print(f"❌ 發生其他錯誤: {e}")
 
     return None
+
 # 檢查檔案是否存在且確實是一個檔案 (非資料夾)
 def check_folder_and_create(folder_path: str):
     """
@@ -200,6 +201,7 @@ def check_folder_and_create(folder_path: str):
     jutils.check_file_exists(filename_new)
     return True
 
+# (4/10) 抓取指定日期的 MI_INDEX20 報告 (收盤指數及成交量值資訊)。
 def fetch_twse_mi_index20(target_date: str) -> Optional[pd.DataFrame]:
     """
     (4/10) 抓取指定日期的 MI_INDEX20 報告 (收盤指數及成交量值資訊)。
@@ -234,9 +236,8 @@ def main_run():
 
     # 先抓取資料
     fetch_twse_mi_index20(TARGET_DATE)
-
+        
     # ----------------- 檢查 Token 是否存在 -----------------
-
     # 您指定的檔案路徑
 
     FILE_PATH = BASE_DIR / "datas" / "processed" / "get_holidays" / "holidays_all.csv"
@@ -246,6 +247,8 @@ def main_run():
 
     # 執行檢查
     result_found = check_date_in_csv(FILE_PATH, DATE_TO_CHECK, DATE_COLUMN)
+
+    print(result_found)
 
     # if not LINE_CHANNEL_ACCESS_TOKEN:
     #     print("錯誤：LINE_CHANNEL_ACCESS_TOKEN 未在 line_API.env 中設置或讀取失敗。程式中止。")
@@ -290,6 +293,8 @@ def main_run():
         
         # 選擇需要的欄位：【證券代號】、【證券名稱】
         result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']]
+        new_columns = ['代號', '名稱', '收盤價', '漲跌', '差價']
+        result.columns = new_columns
         
         
         # 顯示結果
@@ -330,18 +335,16 @@ def main_run():
     #     print("輸入不能為空。")
     # -----------------------
 
-    if result_found:
-        analysis_report = f"{DATE_TO_CHECK}股市為休市日!!"
-        send_stock_notification(LINE_USER_ID, analysis_report)
-    else:
-        send_stock_notification(LINE_USER_ID, analysis_report)
-
+    #if result_found:
+    #    analysis_report = f"{DATE_TO_CHECK}股市為休市日!!"
+    #    send_stock_notification(LINE_USER_ID, analysis_report)
+    #else:
+    #    send_stock_notification(LINE_USER_ID, analysis_report)
 #---------------
 
 if not LINE_CHANNEL_ACCESS_TOKEN:
         print("錯誤：LINE_CHANNEL_ACCESS_TOKEN 未在 line_API.env 中設置或讀取失敗。程式中止。")
         exit()
-
 try:
     # 初始化 Configuration 和 MessagingApi
     configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
@@ -358,7 +361,7 @@ except Exception as e:
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-schedule.every(5).seconds.do(main_run)
+schedule.every(1).seconds.do(main_run)
 
 # 每天 15:00 運行一次 get_price 函數
 #schedule.every().day.at('17:00').do(main_run)
