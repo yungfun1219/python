@@ -276,7 +276,7 @@ def main_run():
     try:
         # 讀取 CSV 檔案
         # 假設檔案是 Big5 編碼 (台灣常見)，若遇到編碼錯誤可嘗試 'utf-8' 或 'cp950'
-        df = pd.read_csv(file_path, encoding='utf-8')
+        df = pd.read_csv(file_path, encoding='utf-8', sep=',')
 
         # 確保【證券代號】是以字串形式處理，以便於長度篩選
         df['證券代號'] = df['證券代號'].astype(str).str.strip()
@@ -293,8 +293,23 @@ def main_run():
         
         # 選擇需要的欄位：【證券代號】、【證券名稱】
         result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']]
-        new_columns = ['代號', '名稱', '收盤價', '漲跌', '差價']
+        # 修正篩選，加上 .copy() 避免警告
+        result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']].copy()
+        new_columns = ['代號', '名稱', '收盤', '漲跌', '差價']
         result.columns = new_columns
+        
+        # 計算漲跌幅%數
+        result["收盤"] = pd.to_numeric(result['收盤'], errors='coerce')
+        result['差價'] = pd.to_numeric(result['差價'], errors='coerce')
+        result['漲跌幅(%)'] =  (result['差價'] / (result["收盤"] - result['差價']) *100).round(2)
+        
+        # 【核心修改點】: 將漲跌幅數字轉換為字串並在後面添加 '%'
+        # 1. 處理潛在的 NaN 值
+        result['漲跌幅(%)'] = result['漲跌幅(%)'].fillna('N/A')
+        # 2. 轉換為字串並串接 '%'
+        result['漲跌幅(%)'] = result['漲跌幅(%)'].astype(str).str.cat(others='%')
+        
+        print("debug")
         
         
         # 顯示結果

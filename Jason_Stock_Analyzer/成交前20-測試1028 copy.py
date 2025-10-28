@@ -187,6 +187,7 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         print(f"❌ 發生其他錯誤: {e}")
 
     return None
+
 # 檢查檔案是否存在且確實是一個檔案 (非資料夾)
 def check_folder_and_create(folder_path: str):
     """
@@ -200,6 +201,7 @@ def check_folder_and_create(folder_path: str):
     jutils.check_file_exists(filename_new)
     return True
 
+# (4/10) 抓取指定日期的 MI_INDEX20 報告 (收盤指數及成交量值資訊)。
 def fetch_twse_mi_index20(target_date: str) -> Optional[pd.DataFrame]:
     """
     (4/10) 抓取指定日期的 MI_INDEX20 報告 (收盤指數及成交量值資訊)。
@@ -234,9 +236,8 @@ def main_run():
 
     # 先抓取資料
     fetch_twse_mi_index20(TARGET_DATE)
-
+        
     # ----------------- 檢查 Token 是否存在 -----------------
-
     # 您指定的檔案路徑
 
     FILE_PATH = BASE_DIR / "datas" / "processed" / "get_holidays" / "holidays_all.csv"
@@ -246,6 +247,8 @@ def main_run():
 
     # 執行檢查
     result_found = check_date_in_csv(FILE_PATH, DATE_TO_CHECK, DATE_COLUMN)
+
+    print(result_found)
 
     # if not LINE_CHANNEL_ACCESS_TOKEN:
     #     print("錯誤：LINE_CHANNEL_ACCESS_TOKEN 未在 line_API.env 中設置或讀取失敗。程式中止。")
@@ -270,10 +273,67 @@ def main_run():
     #send_stock_notification(LINE_USER_ID, analysis_report)
     #--------------------------------
 
+# ----------------- 數據處理和篩選 (修正錯誤的核心區塊) -----------------
+analysis_report = "【錯誤】未執行股票篩選程序，請檢查檔案或程式錯誤。"
+
+# 使用一個大的 try 區塊包裹所有數據讀取和計算
+try:
+    # --- 數據讀取邏輯開始 (解決 sep 錯誤的核心) ---
+    df = None # 初始化 df 變數
+    
+    # 嘗試 1: cp950 + 逗號 (最常見)
+    try:
+        df = pd.read_csv(file_path, encoding='cp950', sep=',')
+        print("✅ 成功使用 cp950 + 逗號讀取。")
+    except (UnicodeDecodeError, pd.errors.ParserError):
+        # 嘗試 2: big5 + 逗號
+        try:
+            df = pd.read_csv(file_path, encoding='utf-8', sep=',')
+            print("✅ 成功使用 utf-8 + 逗號讀取。")
+        except (UnicodeDecodeError, pd.errors.ParserError):
+            # 嘗試 3: big5 + Tab 鍵 (如果分隔符不是逗號)
+            try:
+                df = pd.read_csv(file_path, encoding='utf-8', sep='\t')
+                print("✅ 成功使用 utf-8 + Tab 讀取。")
+            except Exception as e:
+                 raise Exception(f"所有讀取嘗試均失敗，請檢查檔案分隔符或編碼。原始錯誤: {e}")
+
+    # 確認 DataFrame 是否讀取成功且非空
+    if df is None or df.empty:
+        raise pd.errors.EmptyDataError("讀取後 DataFrame 為空，檔案可能無數據或格式不正確。")
+        
+    # --- 數據讀取邏輯結束 ---
+    
+    # 確保【證券代號】是以字串形式處理
+    df['證券代號'] = df['證券代號'].astype(str).str.strip()
+    
+    # --- 篩選條件 ---
+    df_filtered = df[df['證券代號'].str.match(r'^\d{4}$', na=False)]
+    df_filtered = df_filtered[df_filtered['漲跌(+/-)'].astype(str).str.strip() == '+']
+    
+    # 選擇需要的欄位並使用 .copy() 避免 SettingWithCopyWarning
+    result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']].copy()
+    
+    # ... (後續的欄位重命名、計算和格式化程式碼保持不變) ...
+    # ... (此處省略後續的 result 處理、Line 報告生成邏輯) ...
+    
+except FileNotFoundError:
+    analysis_report = f"【錯誤】找不到股票資料檔案路徑 {file_path}"
+    print(analysis_report)
+except pd.errors.EmptyDataError as e:
+    analysis_report = f"【錯誤】檔案讀取失敗或內容為空: {e}"
+    print(analysis_report)
+except KeyError as e:
+    analysis_report = f"【錯誤】CSV 檔案中缺少必要的欄位。請檢查欄位名稱是否正確。詳細錯誤：{e}"
+    print(analysis_report)
+except Exception as e:
+    analysis_report = f"【錯誤】讀取、處理或計算數據時發生了一個未預期的錯誤：{e}"
+    print(analysis_report)
+    
     try:
         # 讀取 CSV 檔案
         # 假設檔案是 Big5 編碼 (台灣常見)，若遇到編碼錯誤可嘗試 'utf-8' 或 'cp950'
-        df = pd.read_csv(file_path, encoding='utf-8')
+        df = pd.read_csv(file_path, encoding='utf-8', sep=',')
 
         # 確保【證券代號】是以字串形式處理，以便於長度篩選
         df['證券代號'] = df['證券代號'].astype(str).str.strip()
@@ -290,6 +350,23 @@ def main_run():
         
         # 選擇需要的欄位：【證券代號】、【證券名稱】
         result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']]
+        # 修正篩選，加上 .copy() 避免警告
+        result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']].copy()
+        new_columns = ['代號', '名稱', '收盤', '漲跌', '差價']
+        result.columns = new_columns
+        
+        # 計算漲跌幅%數
+        result["收盤"] = pd.to_numeric(result['收盤'], errors='coerce')
+        result['差價'] = pd.to_numeric(result['差價'], errors='coerce')
+        result['漲跌幅(%)'] =  (result['差價'] / (result["收盤"] - result['差價']) *100).round(2)
+        
+        # 【核心修改點】: 將漲跌幅數字轉換為字串並在後面添加 '%'
+        # 1. 處理潛在的 NaN 值
+        result['漲跌幅(%)'] = result['漲跌幅(%)'].fillna('N/A')
+        # 2. 轉換為字串並串接 '%'
+        result['漲跌幅(%)'] = result['漲跌幅(%)'].astype(str).str.cat(others='%')
+        
+        print("debug")
         
         
         # 顯示結果
@@ -330,18 +407,16 @@ def main_run():
     #     print("輸入不能為空。")
     # -----------------------
 
-    if result_found:
-        analysis_report = f"{DATE_TO_CHECK}股市為休市日!!"
-        #send_stock_notification(LINE_USER_ID, analysis_report)
-    else:
-        send_stock_notification(LINE_USER_ID, analysis_report)
-
+    #if result_found:
+    #    analysis_report = f"{DATE_TO_CHECK}股市為休市日!!"
+    #    send_stock_notification(LINE_USER_ID, analysis_report)
+    #else:
+    #    send_stock_notification(LINE_USER_ID, analysis_report)
 #---------------
 
 if not LINE_CHANNEL_ACCESS_TOKEN:
         print("錯誤：LINE_CHANNEL_ACCESS_TOKEN 未在 line_API.env 中設置或讀取失敗。程式中止。")
         exit()
-
 try:
     # 初始化 Configuration 和 MessagingApi
     configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
@@ -358,7 +433,7 @@ except Exception as e:
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-schedule.every(5).seconds.do(main_run)
+schedule.every(1).seconds.do(main_run)
 
 # 每天 15:00 運行一次 get_price 函數
 #schedule.every().day.at('17:00').do(main_run)
