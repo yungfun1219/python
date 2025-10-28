@@ -293,9 +293,15 @@ def main_run():
         
         # 選擇需要的欄位：【證券代號】、【證券名稱】
         result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']]
-        new_columns = ['代號', '名稱', '收盤價', '漲跌', '差價']
+        new_columns = ['代號', '名稱', '收盤', '漲跌', '差價']
         result.columns = new_columns
         
+        # 計算漲跌幅%數
+        result["收盤"] = pd.to_numeric(result['收盤'], errors='coerce')
+        result['差價'] = pd.to_numeric(result['差價'], errors='coerce')
+        result['%數'] =  round((result['差價'] / (result["收盤"] - result['差價'])),3)*100
+        print("debug")
+        print(result.to_string)
         
         # 顯示結果
         if not result.empty:
