@@ -242,8 +242,8 @@ def main_run():
     # 您指定的檔案路徑
 
     FILE_PATH = BASE_DIR / "datas" / "processed" / "get_holidays" / "holidays_all.csv"
-    #DATE_TO_CHECK = date.today().strftime("%Y/%m/%d") 
-    DATE_TO_CHECK = '2025/10/07' 
+    DATE_TO_CHECK = date.today().strftime("%Y/%m/%d") 
+    #DATE_TO_CHECK = '2025/10/07' 
     DATE_COLUMN = '日期' # 根據您前面的程式碼，合併後的欄位名稱應為 '日期'
 
     # 執行檢查
