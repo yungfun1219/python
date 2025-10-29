@@ -309,8 +309,7 @@ def main_run():
         # 2. 轉換為字串並串接 '%'
         result['漲跌幅(%)'] = result['漲跌幅(%)'].astype(str).str.cat(others='%')
         
-        print("debug")
-        
+              
         
         # 顯示結果
         if not result.empty:
