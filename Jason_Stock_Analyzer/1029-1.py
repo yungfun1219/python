@@ -288,11 +288,34 @@ def main_run():
         # 使用 .str.strip() 來移除可能的空白字元，確保精確匹配
         df_filtered = df_filtered[df_filtered['漲跌(+/-)'].astype(str).str.strip() == '+']
         
+        # 3. 清理數值欄位：移除可能存在的逗號並轉為浮點數
+        # TWSE 資料的數值欄位可能包含逗號 (e.g., 10,000.00)
+        cols_to_clean = ['收盤價', '漲跌價差']
+        for col in cols_to_clean:
+            if col in df_filtered.columns:
+            # 移除逗號並嘗試轉換為數值，errors='coerce' 會將無法轉換的值設為 NaN
+                df_filtered.loc[:, col] = df_filtered[col].astype(str).str.replace(',', '').str.strip()
+                df_filtered.loc[:, col] = pd.to_numeric(df_filtered[col], errors='coerce')
+        # 移除 NaN 值，以確保計算時不會出錯
+        df_filtered.dropna(subset=['收盤價', '漲跌價差'], inplace=True)
+            
+        # 4. 計算漲跌幅百分比：('漲跌價差' / (收盤價 - 漲跌價差)) * 100
+        denominator = df_filtered['收盤價'] - df_filtered['漲跌價差']
+            
+        # 避免除以零或因數值太小導致的無限大 (當分母接近 0 時)
+        # 這裡篩選掉分母為 0 的情況，確保計算有效
+        valid_for_calc = denominator != 0
+        # 初始化新欄位
+        df_filtered.loc[:, '計算漲跌幅'] = 0.0
+            
+        # 進行向量化計算
+        df_filtered.loc[valid_for_calc, '計算漲跌幅'] = (df_filtered['漲跌價差'] / denominator) * 100
+            
+        # 5. 選擇需要的欄位 (使用計算後的漲跌幅)
+        result = df_filtered[['證券代號', '證券名稱', '收盤價', '漲跌(+/-)', '漲跌價差','計算漲跌幅']].copy()
         
-        # 選擇需要的欄位：【證券代號】、【證券名稱】
-        result = df_filtered[['證券代號', '證券名稱' , '收盤價' ,'漲跌(+/-)' , '漲跌價差']]
         
-        # 4. 定義欄位名稱對應字典
+        # 6. 定義欄位名稱對應字典
         column_mapping = {
             '證券代號': '代號',
             '證券名稱': '名稱',
