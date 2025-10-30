@@ -5,6 +5,7 @@ import os
 from io import StringIO
 from typing import Optional
 import datetime
+from datetime import date, timedelta
 import re
 import sys #--測試程式中斷用sys.exit(0) #中斷程式
 import urllib3
@@ -300,7 +301,237 @@ def extract_columns_from_second_row(file_path: str, columns_to_extract: list = [
         print(f"【錯誤】讀取或處理檔案時發生錯誤: {e}")
         return pd.DataFrame()
 
+# 讀取 holidays_all.csv 檔案，移除 '日期' 欄位的重複項，並覆寫原檔案。
+def remove_duplicate_dates():
+    """
+    讀取 holidays_all.csv 檔案，移除 '日期' 欄位的重複項，並覆寫原檔案。
+    """
+    print(f"\n--- 正在清理重複日期: {CLEAN_FILE_NAME} ---")
 
+    if not FILE_PATH.exists():
+        print(f"【錯誤】找不到檔案: {FILE_PATH.relative_to(BASE_DIR_get_holidays)}")
+        print("請確認檔案路徑和名稱是否正確。")
+        return
+
+    try:
+        # 嘗試使用 UTF-8 (帶 BOM) 或 Big5 讀取，以處理可能的編碼問題
+        try:
+            df = pd.read_csv(FILE_PATH, encoding='utf-8-sig')
+        except UnicodeDecodeError:
+            df = pd.read_csv(FILE_PATH, encoding='big5')
+
+        # 清理欄位名稱，移除可能存在的隱藏空格
+        df.columns = df.columns.str.strip()
+
+        if '日期' not in df.columns:
+            print(f"【錯誤】檔案中找不到 '日期' 欄位。檔案欄位為: {df.columns.tolist()}")
+            return
+        
+        original_count = len(df)
+        
+        # 執行重複項移除，僅保留第一次出現的記錄
+        df_cleaned = df.drop_duplicates(subset=['日期'], keep='first')
+        
+        cleaned_count = len(df_cleaned)
+        removed_count = original_count - cleaned_count
+
+        if removed_count > 0:
+            # 儲存清理後的檔案
+            # 覆寫原檔案，使用 UTF-8 附帶 BOM
+            df_cleaned.to_csv(FILE_PATH, index=False, encoding='utf-8-sig')
+            
+            print(f"✅ 清理完成！")
+            print(f" 原始筆數: {original_count}")
+            print(f" 移除重複筆數: {removed_count}")
+            print(f" 清理後筆數: {cleaned_count}")
+            print(f" 檔案已更新: {FILE_PATH.relative_to(BASE_DIR_get_holidays)}")
+        else:
+            print(f"ℹ️ 檔案中沒有發現重複的日期，無需清理。")
+            
+    except Exception as e:
+        print(f"【重大錯誤】清理檔案時發生錯誤: {e}")
+
+# 根據休假日 CSV 檔案，整理出該年度的非休假日（工作日）。
+def get_non_holidays(file_path):
+    """
+    根據休假日 CSV 檔案，整理出該年度的非休假日（工作日）。
+    
+    :param file_path: 休假日 CSV 檔案路徑
+    :return: 包含非休假日資訊 (日期, 星期, 假日說明) 的 DataFrame
+    """
+    
+    # 1. 讀取休假日檔案
+    try:
+        df_holidays = pd.read_csv(file_path)
+    except FileNotFoundError:
+        print(f"錯誤：找不到檔案 {file_path}")
+        return None
+    except Exception as e:
+        print(f"讀取檔案時發生錯誤: {e}")
+        return None
+
+    # 假設休假日日期欄位名為 '日期'，且格式為 YYYY/MM/DD 或 YYYY-MM-DD
+    # 請根據您的實際檔案修改欄位名稱
+    date_column = '日期' 
+    if date_column not in df_holidays.columns:
+        print(f"錯誤：CSV 檔案中未找到欄位 '{date_column}'。請檢查欄位名稱。")
+        return None
+
+    # 將日期轉換為 datetime 物件，並處理可能的格式問題
+    df_holidays[date_column] = pd.to_datetime(df_holidays[date_column], errors='coerce')
+    df_holidays.dropna(subset=[date_column], inplace=True)
+    
+    # 2. 確定該年度的起始和結束日期
+    if df_holidays[date_column].empty:
+        print("錯誤：休假日資料為空或日期格式不正確。")
+        return None
+        
+    start_year = df_holidays[date_column].min().year
+    end_year = df_holidays[date_column].max().year
+
+    # 為了簡化，我們只處理第一個偵測到的年度
+    target_year = start_year
+    
+    # 該年度的起始日和結束日
+    start_date = date(target_year, 1, 1)
+    end_date = date(target_year, 12, 31)
+
+    # 3. 建立該年度所有日期的列表
+    all_dates = []
+    current_date = start_date
+    while current_date <= end_date:
+        all_dates.append(current_date)
+        current_date += timedelta(days=1)
+
+    # 4. 建立休假日集合 (只取日期部分，忽略時間)
+    holiday_set = set(df_holidays[date_column].dt.date)
+
+    # 5. 找出非休假日
+    non_holidays_data = []
+    for d in all_dates:
+        # 非休假日 AND 不是週末 (星期六=5, 星期日=6)
+        if d not in holiday_set and d.weekday() < 5: 
+            # 星期幾的中文顯示
+            day_of_week = d.strftime('%a') # %a 顯示星期幾的縮寫
+            
+            # 假日說明欄位填寫為「工作日」或「交易日」
+            description = "工作日"
+            
+            non_holidays_data.append({
+                '日期': d.strftime('%Y-%m-%d'),
+                '星期': day_of_week,
+                '假日說明': description
+            })
+
+    # 6. 建立結果 DataFrame
+    df_non_holidays = pd.DataFrame(non_holidays_data, columns=['日期', '星期', '假日說明'])
+    
+    print(f"✅ 已整理出 {target_year} 年的非休假日。")
+    return df_non_holidays
+
+# 根據休假日 CSV 檔案，整理出檔案中所有年度的非休假日（工作日），並輸出為新的 CSV 檔案。 
+def get_non_holidays_all_years(file_path, output_directory=None):
+    """
+    根據休假日 CSV 檔案，整理出檔案中所有年度的非休假日（工作日），
+    並輸出為新的 CSV 檔案。
+
+    :param file_path: 休假日 CSV 檔案路徑
+    :param output_directory: 輸出檔案的資料夾路徑 (如果為 None，則與輸入檔案在同一資料夾)
+    :return: 包含所有非休假日資訊的 DataFrame (或 None if failed)
+    """
+    
+    # 1. 讀取休假日檔案
+    try:
+        # 嘗試讀取檔案，建議使用 'utf-8'，如果中文亂碼可嘗試 'big5'
+        df_holidays = pd.read_csv(file_path, encoding='utf-8')
+    except FileNotFoundError:
+        print(f"錯誤：找不到檔案 {file_path}")
+        return None
+    except Exception as e:
+        print(f"讀取檔案時發生錯誤，請檢查檔案路徑和編碼: {e}")
+        return None
+
+    # 假設休假日日期欄位名為 '日期'，請依您的檔案實際名稱修改
+    date_column = '日期' 
+    if date_column not in df_holidays.columns:
+        print(f"錯誤：CSV 檔案中未找到欄位 '{date_column}'。請檢查欄位名稱。")
+        return None
+
+    # 將日期轉換為 datetime 物件
+    df_holidays[date_column] = pd.to_datetime(df_holidays[date_column], errors='coerce')
+    df_holidays.dropna(subset=[date_column], inplace=True)
+    
+    if df_holidays[date_column].empty:
+        print("錯誤：休假日資料為空或日期格式不正確。")
+        return None
+
+    # 2. 確定所有涉及的年度
+    min_year = df_holidays[date_column].min().year
+    max_year = df_holidays[date_column].max().year
+    # 建立所有年度的範圍 (例如 2024, 2025)
+    all_years = range(min_year, max_year + 1)
+
+    # 3. 建立休假日集合 (只取日期部分，方便快速查找)
+    # 此處集合包含 CSV 內所有被定義為休市的日期
+    holiday_set = set(df_holidays[date_column].dt.date)
+
+    # 星期幾的中文對照表 (0=星期一, 6=星期日)
+    weekday_map = {
+        0: '星期一', 1: '星期二', 2: '星期三', 3: '星期四', 
+        4: '星期五', 5: '星期六', 6: '星期日'
+    }
+
+    all_non_holidays_data = []
+
+    # 4. 針對每個年度找出非休假日 (工作日)
+    print(f"開始處理年度範圍: {min_year} 年到 {max_year} 年...")
+    
+    for year in all_years:
+        start_date = date(year, 1, 1)
+        end_date = date(year, 12, 31)
+        
+        current_date = start_date
+        while current_date <= end_date:
+            
+            # 判斷是否為「非休假日」 (工作日必須滿足兩個條件)
+            # 1. 必須是週一到週五 (工作日)
+            # 2. 必須不在 CSV 列表中的休假日集合裡
+            
+            is_weekday = current_date.weekday() < 5 # 0-4 是週一到週五
+            is_holiday_in_list = current_date in holiday_set
+            
+            if is_weekday and not is_holiday_in_list:
+                day_of_week = weekday_map[current_date.weekday()]
+                description = "工作日" # 假日說明欄位填寫為「工作日」
+                
+                all_non_holidays_data.append({
+                    '日期': current_date.strftime('%Y/%m/%d'), 
+                    '星期': day_of_week,
+                    '假日說明': description
+                })
+            
+            current_date += timedelta(days=1)
+
+    # 5. 建立結果 DataFrame
+    df_non_holidays = pd.DataFrame(all_non_holidays_data, columns=['日期', '星期', '假日說明'])
+    
+    # 6. 輸出至 CSV 檔案
+    
+    # 決定輸出路徑
+    input_dir = os.path.dirname(file_path)
+    output_path = output_directory if output_directory else input_dir
+    
+    # 檔案名稱格式： trading_day_YYYY-YYYY.csv
+    output_filename = f'trading_day_{min_year}-{max_year}.csv'
+    output_file_path = os.path.join(output_path, output_filename)
+    
+    # 使用 'utf-8-sig' 編碼以確保 Excel 開啟時中文不會亂碼
+    df_non_holidays.to_csv(output_file_path, index=False, encoding='utf-8-sig')
+
+    print(f"✅ 成功整理出 {min_year} 到 {max_year} 年度的非休假日 (共 {len(df_non_holidays)} 筆資料)。")
+    print(f"檔案已儲存至: {output_file_path}")
+    
+    return df_non_holidays, min_year, max_year
 
 # --- 主程式執行區 ---
 if __name__ == '__main__':
@@ -312,6 +543,14 @@ if __name__ == '__main__':
     BASE_DIR_get_twse = pathlib.Path(__file__).resolve().parent / "datas" / "twse_holidays"
     BASE_DIR_get_holidays = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays"
     BASE_DIR_trading_day = pathlib.Path(__file__).resolve().parent / "datas" / "processed"
+    
+    TARGET_FILE_NAME = "holidays_all.csv"
+    TWSE_DATE_COLUMN = '日期'
+    
+    # 根據您的要求，清理檔案名為 holidays_all.csv
+    CLEAN_FILE_NAME = "holidays_all.csv" 
+    # 檔案完整路徑: datas/processed/get_holidays/holidays_all.csv
+    FILE_PATH = BASE_DIR_get_holidays / CLEAN_FILE_NAME
     
     for get_year in range(start_year, end_year+1):
         # ----------------------------------------------------
@@ -345,12 +584,6 @@ if __name__ == '__main__':
         
     extracted_data_combined = pd.DataFrame()
 
-    sys.exit(0) #中斷程式
-    
-    #BASE_DIR = pathlib.Path(r"D:\Python_repo\python\Jason_Stock_Analyzer\datas\processed\get_holidays")
-    TARGET_FILE_NAME = "holidays_all.csv"
-    TWSE_DATE_COLUMN = '日期'
-    
 
     for file_path in BASE_DIR_get_holidays.glob("*.csv"):
 
@@ -373,4 +606,16 @@ if __name__ == '__main__':
     file_path = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), "datas", "processed" , "get_holidays" , 'holidays_all.csv')
         
     df_sorted.to_csv(file_path, index=False, encoding='utf-8-sig')
+    
+    remove_duplicate_dates()
+    
+
+# 如果您希望輸出檔案儲存在特定資料夾，請修改 output_dir
+# 預設為 None，會儲存在輸入檔案的同一資料夾
+output_dir = None 
+
+result_df, min_year, max_year = get_non_holidays_all_years(file_path, output_dir)
+
+if result_df is not None:
+    print(f"\n--- {min_year} 到 {max_year} 股票交易日整理完成 ---")
     
