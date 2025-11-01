@@ -616,7 +616,7 @@ for every_day in past_dates_yyyymmdd:
         else:
             print(f"[🔴 {name} (失敗)] 無數據或抓取錯誤。")
 
-    time.sleep(15) 
+    time.sleep(5) 
 
 # 增加日誌儲存：記錄本次嘗試抓取的日期
 log_summary_results(results, TARGET_DATE)
