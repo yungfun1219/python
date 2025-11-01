@@ -450,7 +450,7 @@ results = []
 # 1. STOCK_DAY (個股日成交資訊)
 # 改以單獨的程式抓取資料
 #results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
-
+'''
 # 2. MI_INDEX (所有類股成交統計)
 results.append(("MI_INDEX", fetch_twse_mi_index(TARGET_DATE))) 
 
@@ -477,6 +477,8 @@ results.append(("TWT43U", fetch_twse_twt43u(TARGET_DATE)))
 
 # 10. TWT44U (投信買賣超彙總表)
 results.append(("TWT44U", fetch_twse_twt44u(TARGET_DATE)))
+
+'''
 
 # --- 最終結果預覽 ---
 print("\n" + "="*50)

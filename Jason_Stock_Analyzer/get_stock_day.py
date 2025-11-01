@@ -366,13 +366,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Line Bot API 初始化失敗，請檢查 Token：{e}")
 
-    # ... 接下來的程式碼保持不變 ...
-    # 這是接收訊息的用戶 ID 或群組 ID
-    # LINE_USER_ID 現在已經從 .env 檔案中讀取
-
-    # Line機器人範例執行
-    #analysis_report = "台積電 (2330) 近期走勢強勁，RSI 位於 65，預期短期內仍有上漲動能。"
-    #send_stock_notification(LINE_USER_ID, analysis_report)
 #--------------------------------
 
     # 1. 取得所有股票代號清單

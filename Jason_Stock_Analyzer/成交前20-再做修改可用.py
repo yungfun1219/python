@@ -229,7 +229,11 @@ def fetch_twse_mi_index20(target_date: str) -> Optional[pd.DataFrame]:
         print(f"✅ (4/10) {filename} 儲存成功。")
         return df
     return None
+def main_run1():
+    print("測試定時1")
 
+def main_run2():
+    print("測試定時2")
 def main_run():
 
     # 先抓取資料
@@ -395,8 +399,9 @@ except Exception as e:
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-schedule.every(5).seconds.do(main_run)
-
+#schedule.every(5).seconds.do(main_run)
+schedule.every(10).seconds.do(main_run1)
+schedule.every(5).seconds.do(main_run2)
 # 每天 15:00 運行一次 get_price 函數
 #schedule.every().day.at('17:00').do(main_run)
 

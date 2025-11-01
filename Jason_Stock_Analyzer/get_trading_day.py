@@ -13,6 +13,11 @@ import urllib3
 # 禁用 urllib3 的 InsecureRequestWarning 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+import sys
+# 強制設定標準輸出和標準錯誤的編碼為 UTF-8
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
 # --- 函式整理 --- 
 
 # 從台灣證券交易所網站抓取指定年份的休市日期資料。
