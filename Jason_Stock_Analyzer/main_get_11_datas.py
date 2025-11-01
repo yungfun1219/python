@@ -539,7 +539,7 @@ def fetch_twse_t86(target_date: str) -> Optional[pd.DataFrame]:
 
 TARGET_DATE = date.today().strftime("%Y%m%d") 
 #TARGET_STOCK = "2330" # 台灣積體電路製造
-TARGET_DATE = "20251023"  # 測試用特定日期
+#TARGET_DATE = "20251023"  # 測試用特定日期
 
 print("\n" + "="*50)
 print("--- 程式開始執行：TWSE 10 大報告批量抓取 ---")
@@ -555,17 +555,17 @@ results = []
 
 file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
 # 假設您的日期欄位名稱就是 'Date'
-past_dates_yyyymmdd = get_past_dates_in_yyyymmdd(file_path, date_column_name='日期')
-
-past_dates_yyyymmdd = ["20251031",
-                       "20251030",
-                       "20251029",
-                       "20251028",
-                       "20251027",
-                       "20251023",
-                       "20251022",
-                       "20251021",
-                       "20251020",]
+#past_dates_yyyymmdd = get_past_dates_in_yyyymmdd(file_path, date_column_name='日期')
+past_dates_yyyymmdd = TARGET_DATE
+# past_dates_yyyymmdd = ["20251031",
+#                        "20251030",
+#                        "20251029",
+#                        "20251028",
+#                        "20251027",
+#                        "20251023",
+#                        "20251022",
+#                        "20251021",
+#                        "20251020",]
 
 for every_day in past_dates_yyyymmdd:
     
