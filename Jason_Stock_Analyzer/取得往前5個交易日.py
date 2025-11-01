@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import date, datetime, time, timedelta
 import os
+import pathlib
 
 def find_last_n_trading_days_with_time_check(file_path, n=5):
     """
@@ -90,7 +91,9 @@ def find_last_n_trading_days_with_time_check(file_path, n=5):
     return last_n_days
 
 # --- 執行部分 ---
-file_path = r'D:\Python_repo\python\Jason_Stock_Analyzer\datas\processed\get_holidays\trading_day_2021-2025.csv'
+
+file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
+
 N_DAYS = 5 # 往前找的交易日數量
 
 recent_trading_days_df = find_last_n_trading_days_with_time_check(file_path, n=N_DAYS)
