@@ -1266,12 +1266,13 @@ def main_run():
                 except ValueError as e:
                     print(f"❌ 錯誤：數據中包含無法轉換為數值的資料，無法換算成「張」。")
                     # print(f"  詳細錯誤：{e}") # 方便除錯
-                net_volume_data = net_volume_data.to_string(index=False, header=False) + "股"        
+                  
+                     
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
                 net_volume_data = "無資料"
-            #net_volume_data = net_volume_data.to_string(index=False, header=False)
-            print(net_volume_data)
+            net_volume_data = net_volume_data.tolist()[0][:-4] + "千股"
+            
             get_price = lookup_stock_price(
                 file_path=CSV_PATH,
                 stock_name=TARGET_STOCK_NAME,
@@ -1280,8 +1281,13 @@ def main_run():
             )
             day_mmdd = f"{day_roll1[4:6]}/{day_roll1[-2:]}"
             price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
-            price_percent = round(float(price_percent), 2)
-            Send_message += f"{day_mmdd}:{get_price}({price_percent}%)({net_volume_data})\n"
+            price_percent = round(float(price_percent), 1)
+            if price_percent > 0:
+                price_percent = f"🔴 {abs(price_percent)}"
+            else:
+                price_percent = f"🟢 {abs(price_percent)}"
+            
+            Send_message += f"{day_mmdd} : {get_price}{price_percent}% ({net_volume_data})\n"
             get_price_before = get_price
     #----------------------        
         #print(Send_message)    
@@ -1292,7 +1298,7 @@ def main_run():
     # 呼叫函式
         top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)
         # Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}\n--三大法人買超前20名--\n{top_10_positive_df}"
-        Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}"
+        Send_message_ALL += f"\n=🥇={TARGET_STOCK_NAME} 最近5日收盤價=🥇=\n{Send_message}"
     print(Send_message_ALL)
 
     # ---- line notify 發送訊息 ----
@@ -1359,13 +1365,13 @@ def main_run():
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-schedule.every(1).seconds.do(main_run)
+#schedule.every(1).seconds.do(main_run)
 
 #每小時運行一次
 #schedule.every(1).hour.do(main_run)
 
 # 每天 15:30 運行一次 get_price 函數
-#schedule.every().day.at('15:07').do(main_run)
+schedule.every().day.at('18:00').do(main_run)
 
 # 將 schedule.run_pending() 放在 while 無窮迴圈內
 while True:

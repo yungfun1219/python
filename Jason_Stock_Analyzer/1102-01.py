@@ -1249,7 +1249,7 @@ def main_run():
 
             # 呼叫函式
             net_volume_data = get_stock_net_volume(file_path, stock_name)
-
+            
             if net_volume_data is not None and not net_volume_data.empty:
                 try:
                     # 1. 轉換為數值 (float)，並除以 1000 換算成「張」
@@ -1266,11 +1266,29 @@ def main_run():
                 except ValueError as e:
                     print(f"❌ 錯誤：數據中包含無法轉換為數值的資料，無法換算成「張」。")
                     # print(f"  詳細錯誤：{e}") # 方便除錯
-                net_volume_data = net_volume_data.to_string(index=False, header=False) + "股"        
+                #net_volume_data = int(net_volume_data.tolist()[0].replace(",",""))
+            
+                print(f"原始買賣超股數資料: {net_volume_data.tolist()[0][:-4]}千股")    
+                net_volume_data = net_volume_data.tolist()[0].replace(",","")
+                
+                if "-" in net_volume_data:
+                    print("賣超股數為負值，轉為正值處理。")
+                    net_volume_data = abs(net_volume_data)
+                else:
+                    print("買超股數為正值。")
+                    net_volume_data = abs(net_volume_data)
+                
+                
+                print(f"買賣超股數: {net_volume_data}")
+                
+                
+                #net_volume_data =round((int(net_volume_data.tolist()[0].replace(",","")) / 1000), 0) + "千股"
+                
+                
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
                 net_volume_data = "無資料"
-            #net_volume_data = net_volume_data.to_string(index=False, header=False)
+            
             print(net_volume_data)
             get_price = lookup_stock_price(
                 file_path=CSV_PATH,
@@ -1280,8 +1298,13 @@ def main_run():
             )
             day_mmdd = f"{day_roll1[4:6]}/{day_roll1[-2:]}"
             price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
-            price_percent = round(float(price_percent), 2)
-            Send_message += f"{day_mmdd}:{get_price}({price_percent}%)({net_volume_data})\n"
+            price_percent = round(float(price_percent), 1)
+            if price_percent > 0:
+                price_percent = f"🔴 {abs(price_percent)}"
+            else:
+                price_percent = f"🟢 {abs(price_percent)}"
+            
+            Send_message += f"{day_mmdd} : {get_price}{price_percent}%({net_volume_data})\n"
             get_price_before = get_price
     #----------------------        
         #print(Send_message)    
