@@ -1210,7 +1210,7 @@ def main_run():
     N_DAYS = 6 # 往前找的交易日數量
 
     recent_trading_days_df = find_last_n_trading_days_with_time_check(file_path, n=N_DAYS)
-    #recent_trading_days_df.sort_values(by="日期", ascending=False, inplace=True)
+    recent_trading_days_df.sort_values(by="日期", ascending=False, inplace=True)
     Send_message_ALL = ""
     for TARGET_STOCK_NAME in TARGET_STOCK_NAMES:
     #    print(f"\n--- {TARGET_STOCK_NAME} 最近 5 個交易日的收盤價 ---")
@@ -1230,16 +1230,12 @@ def main_run():
         if recent_trading_days_df is not None:
             print(f"\n--{TARGET_STOCK_NAME}最近5個交易日--")
 
-        CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll[0:1][0]}_BWIBBU_d_IndexReturn.csv"
-        get_price_before = lookup_stock_price(
-                file_path=CSV_PATH,
-                stock_name=TARGET_STOCK_NAME,
-                name_col=CSV_NAME_COLUMN,
-                price_col=CSV_PRICE_COLUMN
-            )
-        print("前5交易日收盤價:", get_price_before)
-        
-        for day_roll1 in day_roll[1:]:
+
+
+
+
+
+        for day_roll1 in day_roll:
             CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll1}_BWIBBU_d_IndexReturn.csv"
 
             # --- 讀取買賣超資料並發送通知 ---
@@ -1279,10 +1275,8 @@ def main_run():
                 price_col=CSV_PRICE_COLUMN
             )
             day_mmdd = f"{day_roll1[4:6]}/{day_roll1[-2:]}"
-            price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
-            price_percent = round(float(price_percent), 2)
-            Send_message += f"{day_mmdd}:{get_price}({price_percent}%)({net_volume_data})\n"
-            get_price_before = get_price
+            Send_message += f"{day_mmdd} : {get_price} ({net_volume_data})\n"
+        
     #----------------------        
         #print(Send_message)    
         #Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}"
@@ -1349,10 +1343,10 @@ def main_run():
     format_string = "%Y-%m-%d %H:%M"
 
     analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} (庫存股)通知 ---\n" + Send_message_ALL
-    send_stock_notification(LINE_USER_ID, analysis_report)
+    #send_stock_notification(LINE_USER_ID, analysis_report)
 
     analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} 三大法人買超前20名 ---\n" + top_10_positive_df
-    send_stock_notification(LINE_USER_ID, analysis_report)
+    #send_stock_notification(LINE_USER_ID, analysis_report)
 # ===========================================================
 # 先運行 schedule.clear() 將排程清除，避免習慣使用 jupyter notebook 整合開發環境的讀者，
 # 有殘存的排程，造成運行結果不如預期
@@ -1360,9 +1354,6 @@ schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
 schedule.every(1).seconds.do(main_run)
-
-#每小時運行一次
-#schedule.every(1).hour.do(main_run)
 
 # 每天 15:30 運行一次 get_price 函數
 #schedule.every().day.at('15:07').do(main_run)

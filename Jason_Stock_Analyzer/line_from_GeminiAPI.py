@@ -48,5 +48,5 @@ def send_stock_notification(user_id, message_text):
         print(f"其他錯誤: {e}")
 
 # 範例執行
-analysis_report = "台積電 (2330) 近期走勢強勁，RSI 位於 65，預期短期內仍有上漲動能。"
+analysis_report = "🥇✅台積電⬆️ (2330)🎯 🟢近期🔴走勢強勁，RSI ⚠️1️⃣位於 65，預⭐期🚨短期內仍有上漲動能。"
 send_stock_notification(LINE_USER_ID, analysis_report)

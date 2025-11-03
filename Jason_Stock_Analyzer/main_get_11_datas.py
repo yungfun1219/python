@@ -376,12 +376,13 @@ def lookup_stock_price(file_path: str, stock_name: str, name_col: str, price_col
         print(f"❌ 讀取或處理檔案時發生錯誤：{e}")
 
 # 從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
-def find_last_n_trading_days_with_time_check(file_path, n=5):
+def find_last_n_trading_days_with_time_check(file_path, n=6):
     """
     從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
 
     :param file_path: 股票交易日 CSV 檔案路徑
-    :param n: 往前找的交易日數量 (預設為 5)
+    :param n: 往前找的交易日數量 (預設為 6)
+    --取6個但最後一個不顯示，作為數據計算用
     :return: 包含最近 N 個交易日的 DataFrame (或 None if failed)
     """
     
@@ -1202,14 +1203,14 @@ def main_run():
     for col in df["證券名稱"]:
         TARGET_STOCK_NAMES.append(col)
 
-    #-- 取得往前5個交易日 ---
+    #-- 取得往前6個交易日 ---
     
     file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
 
-    N_DAYS = 5 # 往前找的交易日數量
+    N_DAYS = 6 # 往前找的交易日數量
 
     recent_trading_days_df = find_last_n_trading_days_with_time_check(file_path, n=N_DAYS)
-
+    #recent_trading_days_df.sort_values(by="日期", ascending=False, inplace=True)
     Send_message_ALL = ""
     for TARGET_STOCK_NAME in TARGET_STOCK_NAMES:
     #    print(f"\n--- {TARGET_STOCK_NAME} 最近 5 個交易日的收盤價 ---")
@@ -1229,9 +1230,16 @@ def main_run():
         if recent_trading_days_df is not None:
             print(f"\n--{TARGET_STOCK_NAME}最近5個交易日--")
 
-
-
-        for day_roll1 in day_roll:
+        CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll[0:1][0]}_BWIBBU_d_IndexReturn.csv"
+        get_price_before = lookup_stock_price(
+                file_path=CSV_PATH,
+                stock_name=TARGET_STOCK_NAME,
+                name_col=CSV_NAME_COLUMN,
+                price_col=CSV_PRICE_COLUMN
+            )
+        print("前5交易日收盤價:", get_price_before)
+        
+        for day_roll1 in day_roll[1:]:
             CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll1}_BWIBBU_d_IndexReturn.csv"
 
             # --- 讀取買賣超資料並發送通知 ---
@@ -1271,8 +1279,10 @@ def main_run():
                 price_col=CSV_PRICE_COLUMN
             )
             day_mmdd = f"{day_roll1[4:6]}/{day_roll1[-2:]}"
-            Send_message += f"{day_mmdd} : {get_price} ({net_volume_data})\n"
-            
+            price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
+            price_percent = round(float(price_percent), 2)
+            Send_message += f"{day_mmdd}:{get_price}({price_percent}%)({net_volume_data})\n"
+            get_price_before = get_price
     #----------------------        
         #print(Send_message)    
         #Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}"
@@ -1349,10 +1359,13 @@ def main_run():
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-#schedule.every(15).seconds.do(main_run)
+schedule.every(1).seconds.do(main_run)
+
+#每小時運行一次
+#schedule.every(1).hour.do(main_run)
 
 # 每天 15:30 運行一次 get_price 函數
-schedule.every().day.at('23:08').do(main_run)
+#schedule.every().day.at('15:07').do(main_run)
 
 # 將 schedule.run_pending() 放在 while 無窮迴圈內
 while True:
