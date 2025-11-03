@@ -4,7 +4,8 @@ import os
 
 # 1. 定義要執行的腳本路徑
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)))
-filename = BASE_DIR + "/get_trading_day.py"
+filename = BASE_DIR + "/取得庫存股票.py"
+
 
 #filename = r'D:\your_project\analysis_script.py' 
 
