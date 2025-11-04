@@ -1370,6 +1370,7 @@ schedule.clear()
 #每小時運行一次
 #schedule.every(1).hour.do(main_run)
 
+
 # 每天 15:30 運行一次 get_price 函數
 schedule.every().day.at('18:00').do(main_run)
 
