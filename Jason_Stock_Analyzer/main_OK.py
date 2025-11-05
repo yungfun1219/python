@@ -1371,7 +1371,7 @@ schedule.clear()
 #schedule.every(1).hour.do(main_run)
 
 # 每天 15:30 運行一次 get_price 函數
-schedule.every().day.at('18:00').do(main_run)
+schedule.every().day.at('16:12').do(main_run)
 
 # 將 schedule.run_pending() 放在 while 無窮迴圈內
 while True:

@@ -10,12 +10,12 @@ from pathlib import Path
 import os
 import utils.jason_utils as jutils
 import get_stocks_company_all 
-import pathlib
+#import pathlib
 import shutil
 from dotenv import load_dotenv # ➊ 匯入函式庫
-import numpy as np # 導入 numpy 以便進行數值操作
+#import numpy as np # 導入 numpy 以便進行數值操作
 import schedule
-import keyboard  # 新增: 用於偵測鍵盤輸入
+#import keyboard  # 新增: 用於偵測鍵盤輸入
 
 
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
@@ -1207,7 +1207,7 @@ def main_run():
     # 改以單獨的程式抓取資料
     #results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
 
-    file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
+    file_path = Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
 
     # 2. MI_INDEX (所有類股成交統計)
     results.append(("MI_INDEX", fetch_twse_mi_index(TARGET_DATE))) 
@@ -1236,8 +1236,8 @@ def main_run():
     # 10. TWT44U (投信買賣超彙總表)
     results.append(("TWT44U", fetch_twse_twt44u(TARGET_DATE)))
     # --- 處理並copy檔案到output資料夾 ---
-    input_path = pathlib.Path(__file__).resolve().parent / "datas" / "raw" / "10_TWT44U" / f"{TARGET_DATE}_TWT44U_InvestmentTrust.csv"
-    output_dir = pathlib.Path(__file__).resolve().parent / "datas" / "output"
+    input_path = Path(__file__).resolve().parent / "datas" / "raw" / "10_TWT44U" / f"{TARGET_DATE}_TWT44U_InvestmentTrust.csv"
+    output_dir = Path(__file__).resolve().parent / "datas" / "output"
     output_file = f"{TARGET_DATE}_TWT44U_SelectedColumns_Fixed.csv" # 更改檔名以避免覆蓋舊檔案
     select_and_save_columns_fix_encoding(input_path, output_dir, output_file)
 
@@ -1342,7 +1342,7 @@ def main_run():
 
     #-- 取得往前6個交易日 ---
     
-    file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
+    file_path = Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
 
     N_DAYS = 6 # 往前找的交易日數量
 
@@ -1404,8 +1404,8 @@ def main_run():
                      
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
-                net_volume_data = "無資料"
-            net_volume_data = net_volume_data.tolist()[0][:-4] + "千股"
+                net_volume_data = "0"
+            net_volume_data = net_volume_data.tolist()[0] # + "千股"
             
             get_price = lookup_stock_price(
                 file_path=CSV_PATH,

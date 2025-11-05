@@ -1413,7 +1413,7 @@ def main_run():
             else:
                 price_percent = f"🟢 {abs(price_percent)}"
             
-            Send_message += f"{day_mmdd} : {get_price}{price_percent}% ({net_volume_data})\n"
+            Send_message += f"{day_mmdd}:{get_price}{price_percent}% ({net_volume_data})\n"
             get_price_before = get_price
             
             # 呼叫函式
