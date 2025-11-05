@@ -375,10 +375,10 @@ def lookup_stock_price(file_path: str, stock_name: str, name_col: str, price_col
     except Exception as e:
         print(f"❌ 讀取或處理檔案時發生錯誤：{e}")
 
-# 從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
+# 從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (19:00) 判斷是否納入今天。
 def find_last_n_trading_days_with_time_check(file_path, n=6):
     """
-    從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
+    從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (19:00) 判斷是否納入今天。
 
     :param file_path: 股票交易日 CSV 檔案路徑
     :param n: 往前找的交易日數量 (預設為 6)
@@ -389,10 +389,10 @@ def find_last_n_trading_days_with_time_check(file_path, n=6):
     # 1. 定義當前時間和判斷標準
     now = datetime.now()
     today_date = now.date()
-    cutoff_time = time_TimeClass(15, 0, 0) # 下午 15:00:00
+    cutoff_time = time_TimeClass(19, 0, 0) # 下午 19:00:00
     is_after_cutoff = now.time() >= cutoff_time
 
-    print(f"當前日期: {today_date.strftime('%Y/%m/%d')}, 當前時間是否在 15:00 之後: {is_after_cutoff}")
+    print(f"當前日期: {today_date.strftime('%Y/%m/%d')}, 當前時間是否在 19:00 之後: {is_after_cutoff}")
     
     # 2. 讀取交易日檔案
     try:
@@ -432,12 +432,12 @@ def find_last_n_trading_days_with_time_check(file_path, n=6):
     # 判斷是否應該納入今天
     if is_today_trading_day and is_after_cutoff:
         # 條件 1: 今天是交易日
-        # 條件 2: 且時間在 15:00 之後 (視為今天交易已完成)
+        # 條件 2: 且時間在 19:00 之後 (視為今天交易已完成)
         # -> 納入今天
         inclusion_date = today_date
         print("-> 判斷：納入今天的交易日。")
     else:
-        # 其他情況 (非交易日、或交易日但未滿 15:00)
+        # 其他情況 (非交易日、或交易日但未滿 19:00)
         # -> 排除今天，只取昨天及更早的交易日
         inclusion_date = today_date - timedelta(days=1)
         print("-> 判斷：排除今天的交易日，只取昨天及更早的日期。")
@@ -1271,7 +1271,7 @@ def main_run():
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
                 net_volume_data = "無資料"
-            net_volume_data = net_volume_data.tolist()[0][:-4] + "千股"
+            net_volume_data = net_volume_data.tolist()[0][:-4] + "張"
             
             get_price = lookup_stock_price(
                 file_path=CSV_PATH,
@@ -1283,11 +1283,11 @@ def main_run():
             price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
             price_percent = round(float(price_percent), 1)
             if price_percent > 0:
-                price_percent = f"🔴 {abs(price_percent)}"
+                price_percent = f"🔴{abs(price_percent)}"
             else:
-                price_percent = f"🟢 {abs(price_percent)}"
+                price_percent = f"🟢{abs(price_percent)}"
             
-            Send_message += f"{day_mmdd} : {get_price}{price_percent}% ({net_volume_data})\n"
+            Send_message += f"{day_mmdd}:{get_price}{price_percent}%({net_volume_data})\n"
             get_price_before = get_price
     #----------------------        
         #print(Send_message)    
@@ -1298,7 +1298,7 @@ def main_run():
     # 呼叫函式
         top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)
         # Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}\n--三大法人買超前20名--\n{top_10_positive_df}"
-        Send_message_ALL += f"\n=🥇={TARGET_STOCK_NAME} 最近5日收盤價=🥇=\n{Send_message}"
+        Send_message_ALL += f"\n=🥇{TARGET_STOCK_NAME}🥇最近5日收盤價=\n{Send_message}"
     print(Send_message_ALL)
 
     # ---- line notify 發送訊息 ----
@@ -1357,7 +1357,7 @@ def main_run():
     analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} (庫存股)通知 ---\n" + Send_message_ALL
     send_stock_notification(LINE_USER_ID, analysis_report)
 
-    analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} 三大法人買超前20名 ---\n" + top_10_positive_df
+    analysis_report = f" 發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} 買超前20名 ---\n" + top_10_positive_df
     send_stock_notification(LINE_USER_ID, analysis_report)
 # ===========================================================
 # 先運行 schedule.clear() 將排程清除，避免習慣使用 jupyter notebook 整合開發環境的讀者，
@@ -1365,13 +1365,14 @@ def main_run():
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-#schedule.every(1).seconds.do(main_run)
+schedule.every(1).seconds.do(main_run)
 
 #每小時運行一次
 #schedule.every(1).hour.do(main_run)
 
 # 每天 15:30 運行一次 get_price 函數
-schedule.every().day.at('18:00').do(main_run)
+#schedule.every().day.at('08:00').do(main_run)
+#schedule.every().day.at('20:00').do(main_run)
 
 # 將 schedule.run_pending() 放在 while 無窮迴圈內
 while True:
