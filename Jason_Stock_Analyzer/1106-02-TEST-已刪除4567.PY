@@ -10,12 +10,12 @@ from pathlib import Path
 import os
 import utils.jason_utils as jutils
 import get_stocks_company_all 
-#import pathlib
+import pathlib
 import shutil
 from dotenv import load_dotenv # ➊ 匯入函式庫
-#import numpy as np # 導入 numpy 以便進行數值操作
+import numpy as np # 導入 numpy 以便進行數值操作
 import schedule
-#import keyboard  # 新增: 用於偵測鍵盤輸入
+import keyboard  # 新增: 用於偵測鍵盤輸入
 
 
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
@@ -26,132 +26,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==========================================================
 LOG_FETCH_DATE_FILENAME = "last_get_date.log" # 定義記錄上次成功抓取日期的日誌檔案名稱
 SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
-
-# 讀取關注的股票名稱
-def get_stock_names_from_excel(file_path: str, sheet_name: str, column_name: str) -> Optional[pd.Series]:
-    """
-    讀取 Excel 檔案中指定工作表的指定欄位數據。
-
-    Args:
-        file_path (str): Excel 檔案的完整路徑。
-        sheet_name (str): 工作表的標籤名稱 (e.g., '【關注的股票】')。
-        column_name (str): 要抓取的欄位名稱 (e.g., '證券名稱')。
-
-    Returns:
-        pd.Series or None: 包含證券名稱的 Series，如果失敗則返回 None。
-    """
-    print(f"🔄 正在嘗試讀取 Excel 檔案：{file_path}")
-    print(f"🎯 鎖定工作表：【{sheet_name}】")
-
-    try:
-        # 讀取 Excel 檔案中指定的工作表
-        df = pd.read_excel(file_path, sheet_name=sheet_name)
-        
-        # 檢查欄位是否存在
-        if column_name in df.columns:
-            # 抓取並返回 '證券名稱' 欄位的資料
-            stock_names = df[column_name]
-            
-            print(f"✅ 成功抓取工作表 '{sheet_name}' 中 '{column_name}' 欄位的數據。")
-            
-            # 輸出列表內容
-            print("-" * 50)
-            print("【證券名稱】列表：")
-            print(stock_names.to_string(index=False)) # 輸出乾淨的列表
-            print("-" * 50)
-            
-            return stock_names
-        else:
-            print(f"❌ 錯誤：工作表 '{sheet_name}' 中找不到欄位 '{column_name}'。")
-            print(f"實際欄位名稱：{list(df.columns)}")
-            return None
-
-    except FileNotFoundError:
-        print(f"❌ 錯誤：找不到指定的 Excel 檔案路徑 -> {file_path}")
-        return None
-    except ValueError as e:
-        if "Worksheet named" in str(e):
-            print(f"❌ 錯誤：找不到名為 '{sheet_name}' 的工作表。請檢查標籤名稱是否正確。")
-        else:
-            print(f"❌ 讀取 Excel 檔案時發生錯誤: {e}")
-        return None
-    except Exception as e:
-        print(f"❌ 發生其他錯誤: {e}")
-        return None
-    
-# 讀取 CSV 檔案，篩選出指定證券名稱的數據，並返回其指標資料。
-def get_stock_indicators(file_path: str, target_name: str) -> Optional[pd.DataFrame]:
-    """
-    讀取 CSV 檔案，篩選出指定證券名稱的數據，並返回其指標資料。
-    
-    Args:
-        file_path (str): CSV 檔案的完整路徑。
-        target_name (str): 要篩選的證券名稱 (e.g., '台玻')。
-        
-    Returns:
-        pd.DataFrame or None: 包含目標證券指標數據的 DataFrame，如果失敗則返回 None。
-    """
-    print(f"🔄 正在讀取檔案：{file_path}")
-    print(f"🎯 搜尋目標證券：【{target_name}】的指標數據")
-
-    # 1. 讀取 CSV 檔案 (多編碼嘗試)
-    try:
-        try:
-            df = pd.read_csv(file_path, encoding='utf-8-sig')
-        except UnicodeDecodeError:
-            try:
-                df = pd.read_csv(file_path, encoding='utf-8')
-            except:
-                df = pd.read_csv(file_path, encoding='big5')
-    except FileNotFoundError:
-        print(f"❌ 錯誤：找不到指定的輸入檔案路徑 -> {file_path}")
-        return None
-    except Exception as e:
-        print(f"❌ 發生其他錯誤或編碼問題：{e}")
-        return None
-
-    # 2. 檢查關鍵欄位是否存在
-    # 根據 TWSE/BWIBBU 檔案常見結構，欄位名稱可能略有不同，這裡沿用上一次的欄位名稱，
-    # 但請根據實際檔案情況調整，例如：'本益比' 可能為 'PE Ratio'
-    required_cols = ['證券名稱', '殖利率(%)', '本益比', '股價淨值比']
-    
-    if not all(col in df.columns for col in required_cols):
-        missing_cols = [col for col in required_cols if col not in df.columns]
-        print(f"⚠️ 錯誤：檔案中缺少必要的欄位：{missing_cols}。")
-        print(f"檔案實際欄位名稱：{list(df.columns)}")
-        # 由於 BWIBBU 檔案格式可能較為複雜，這裡先假設欄位名稱是正確的。
-        # 如果執行時報錯，請檢查實際 CSV 檔案中的欄位名稱。
-        return None
-
-    # 3. 數據清理與篩選
-    # 清理 '證券名稱' 兩側空白，確保精確匹配
-    df['證券名稱'] = df['證券名稱'].astype(str).str.strip()
-
-    # 篩選出目標證券名稱的數據
-    target_data = df[df['證券名稱'] == target_name]
-
-    if target_data.empty:
-        print(f"\nℹ️ 提示：在檔案中找不到證券名稱為 【{target_name}】 的數據。")
-        return pd.DataFrame()
-    
-    # 4. 提取目標欄位數據
-    indicator_cols = ['證券名稱', '殖利率(%)', '本益比', '股價淨值比']
-    result_df = target_data[indicator_cols].copy() 
-
-    # 5. 輸出結果
-    print(f"\n✅ 成功找到 【{target_name}】 的指標數據：")
-    print("=" * 40)
-    
-    # 使用 to_string 進行格式化輸出
-    print(
-        result_df.to_string(
-            index=False,
-            justify='left' # 讓文字靠左對齊
-        )
-    )
-    print("=" * 40)
-    
-    return result_df
 
 # 三大法人買超前20
 def get_top_10_institutional_trades_filtered(
@@ -501,10 +375,10 @@ def lookup_stock_price(file_path: str, stock_name: str, name_col: str, price_col
     except Exception as e:
         print(f"❌ 讀取或處理檔案時發生錯誤：{e}")
 
-# 從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
+# 從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (19:00) 判斷是否納入今天。
 def find_last_n_trading_days_with_time_check(file_path, n=6):
     """
-    從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
+    從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (19:00) 判斷是否納入今天。
 
     :param file_path: 股票交易日 CSV 檔案路徑
     :param n: 往前找的交易日數量 (預設為 6)
@@ -515,10 +389,10 @@ def find_last_n_trading_days_with_time_check(file_path, n=6):
     # 1. 定義當前時間和判斷標準
     now = datetime.now()
     today_date = now.date()
-    cutoff_time = time_TimeClass(15, 0, 0) # 下午 15:00:00
+    cutoff_time = time_TimeClass(19, 0, 0) # 下午 19:00:00
     is_after_cutoff = now.time() >= cutoff_time
 
-    print(f"當前日期: {today_date.strftime('%Y/%m/%d')}, 當前時間是否在 15:00 之後: {is_after_cutoff}")
+    print(f"當前日期: {today_date.strftime('%Y/%m/%d')}, 當前時間是否在 19:00 之後: {is_after_cutoff}")
     
     # 2. 讀取交易日檔案
     try:
@@ -558,12 +432,12 @@ def find_last_n_trading_days_with_time_check(file_path, n=6):
     # 判斷是否應該納入今天
     if is_today_trading_day and is_after_cutoff:
         # 條件 1: 今天是交易日
-        # 條件 2: 且時間在 15:00 之後 (視為今天交易已完成)
+        # 條件 2: 且時間在 19:00 之後 (視為今天交易已完成)
         # -> 納入今天
         inclusion_date = today_date
         print("-> 判斷：納入今天的交易日。")
     else:
-        # 其他情況 (非交易日、或交易日但未滿 15:00)
+        # 其他情況 (非交易日、或交易日但未滿 19:00)
         # -> 排除今天，只取昨天及更早的交易日
         inclusion_date = today_date - timedelta(days=1)
         print("-> 判斷：排除今天的交易日，只取昨天及更早的日期。")
@@ -931,7 +805,6 @@ def fetch_twse_bwibbu_d(target_date: str) -> Optional[pd.DataFrame]:
         return df
     return None
 
-
 def fetch_twse_bfi82u(target_date: str) -> Optional[pd.DataFrame]:
     """
     (8/10) 抓取指定日期的 BFI82U 報告 (三大法人買賣超彙總表 - 日)。
@@ -1090,7 +963,7 @@ def main_run():
     # 改以單獨的程式抓取資料
     #results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
 
-    file_path = Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
+    file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
 
     # 2. MI_INDEX (所有類股成交統計)
     results.append(("MI_INDEX", fetch_twse_mi_index(TARGET_DATE))) 
@@ -1107,8 +980,8 @@ def main_run():
     # 10. TWT44U (投信買賣超彙總表)
     results.append(("TWT44U", fetch_twse_twt44u(TARGET_DATE)))
     # --- 處理並copy檔案到output資料夾 ---
-    input_path = Path(__file__).resolve().parent / "datas" / "raw" / "10_TWT44U" / f"{TARGET_DATE}_TWT44U_InvestmentTrust.csv"
-    output_dir = Path(__file__).resolve().parent / "datas" / "output"
+    input_path = pathlib.Path(__file__).resolve().parent / "datas" / "raw" / "10_TWT44U" / f"{TARGET_DATE}_TWT44U_InvestmentTrust.csv"
+    output_dir = pathlib.Path(__file__).resolve().parent / "datas" / "output"
     output_file = f"{TARGET_DATE}_TWT44U_SelectedColumns_Fixed.csv" # 更改檔名以避免覆蓋舊檔案
     select_and_save_columns_fix_encoding(input_path, output_dir, output_file)
 
@@ -1159,17 +1032,6 @@ def main_run():
     FILTER_VALUE = "0"
     OUTPUT_DIRECTORY = None 
 
-    focused_sheet_name = "關注的股票"
-    focused_column_name = "證券名稱"
-
-    focused_stocks = get_stock_names_from_excel(EXCEL_PATH, focused_sheet_name, focused_column_name)
-    focused_stocks_names = []
-
-    for col in focused_stocks:
-        focused_stocks_names.append(col)
-    print(f"\n--- 取得關注的股票清單 ---", focused_stocks_names)
-
-
     # 來源檔案路徑
     SOURCE_FILE = r"Y:\收支記錄\股票分析\股票分析.xlsx"
     # 目標目錄路徑
@@ -1213,16 +1075,18 @@ def main_run():
 
     #-- 取得往前6個交易日 ---
     
-    file_path = Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
+    file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / "trading_day_2021-2025.csv"
 
     N_DAYS = 6 # 往前找的交易日數量
 
     recent_trading_days_df = find_last_n_trading_days_with_time_check(file_path, n=N_DAYS)
-    
+    #recent_trading_days_df.sort_values(by="日期", ascending=False, inplace=True)
     Send_message_ALL = ""
     for TARGET_STOCK_NAME in TARGET_STOCK_NAMES:
+    #    print(f"\n--- {TARGET_STOCK_NAME} 最近 5 個交易日的收盤價 ---")
         Send_message = ""
         #-- 取得五個交易日的收盤價並合併 ---
+        #TARGET_STOCK_NAME = "台玻" 
         CSV_NAME_COLUMN = "證券名稱" # 假設 CSV 中用於名稱比對的欄位
         CSV_PRICE_COLUMN = "收盤價"  # 假設 CSV 中收盤價的欄位
 
@@ -1272,11 +1136,12 @@ def main_run():
                 except ValueError as e:
                     print(f"❌ 錯誤：數據中包含無法轉換為數值的資料，無法換算成「張」。")
                     # print(f"  詳細錯誤：{e}") # 方便除錯
+                  
                      
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
-                net_volume_data = "0"
-            net_volume_data = net_volume_data.tolist()[0] # + "千股"
+                net_volume_data = "無資料"
+            net_volume_data = net_volume_data.tolist()[0][:-4] + "張"
             
             get_price = lookup_stock_price(
                 file_path=CSV_PATH,
@@ -1288,118 +1153,23 @@ def main_run():
             price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
             price_percent = round(float(price_percent), 1)
             if price_percent > 0:
-                price_percent = f"🔴 {abs(price_percent)}"
+                price_percent = f"🔴{abs(price_percent)}"
             else:
-                price_percent = f"🟢 {abs(price_percent)}"
+                price_percent = f"🟢{abs(price_percent)}"
             
-            Send_message += f"{day_mmdd} : {get_price}{price_percent}% ({net_volume_data})\n"
+            Send_message += f"{day_mmdd}:{get_price}{price_percent}%({net_volume_data})\n"
             get_price_before = get_price
-            
-            # 呼叫函式
-            stock_indicators_df = get_stock_indicators(CSV_PATH, stock_name)
-
-            pa_ratio = stock_indicators_df.iloc[0]['殖利率(%)']
-            pe_ratio = stock_indicators_df.iloc[0]['本益比']
-            pb_ratio = stock_indicators_df.iloc[0]['股價淨值比']
-            
-            message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--" + f"\n         本益比 : {pe_ratio}%" + f"\n     股價淨值比 : {pb_ratio}" + f"\n         殖利率 : {pa_ratio}\n\n"
+    #----------------------        
+        #print(Send_message)    
+        #Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}"
+        
+        #file_path = BASE_DIR / "datas" / "raw" / "11_T86" / f"{day_roll1}_T86_InstitutionalTrades.csv"
 
     # 呼叫函式
         top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)
-        Send_message_ALL += f"\n=🥇={TARGET_STOCK_NAME} 最近5日收盤價=🥇=\n{Send_message}"
-        Send_message_ALL += message_add
-        
-    # =========關注的股票================
-    Send_message_focused_all = ""
-    for focused_stocks_name in focused_stocks_names:
-        Send_message_focused = ""
-        #-- 取得五個交易日的收盤價並合併 ---
-        CSV_NAME_COLUMN = "證券名稱" # 假設 CSV 中用於名稱比對的欄位
-        CSV_PRICE_COLUMN = "收盤價"  # 假設 CSV 中收盤價的欄位
-
-        day_roll = []
-        for row in recent_trading_days_df["日期"]:
-            TARGET_DATE = row.replace("/", "")
-            day_roll.append(TARGET_DATE)
-
-        BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
-
-        if recent_trading_days_df is not None:
-            print(f"\n--{focused_stocks_name}最近5個交易日--")
-
-        CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll[0:1][0]}_BWIBBU_d_IndexReturn.csv"
-        get_price_before = lookup_stock_price(
-                file_path=CSV_PATH,
-                stock_name=focused_stocks_name,
-                name_col=CSV_NAME_COLUMN,
-                price_col=CSV_PRICE_COLUMN
-            )
-        print("前5交易日收盤價:", get_price_before)
-        
-        for day_roll1 in day_roll[1:]:
-            CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll1}_BWIBBU_d_IndexReturn.csv"
-
-            # --- 讀取買賣超資料並發送通知 ---
-
-            file_path = BASE_DIR / "datas" / "raw" / "11_T86" / f"{day_roll1}_T86_InstitutionalTrades.csv"
-            stock_name = focused_stocks_name # 目標證券名稱
-
-            # 呼叫函式
-            net_volume_data = get_stock_net_volume(file_path, stock_name)
-
-            if net_volume_data is not None and not net_volume_data.empty:
-                try:
-                    # 1. 轉換為數值 (float)，並除以 1000 換算成「張」
-                    net_volume_in_lots = net_volume_data.astype(float) / 1000
-                    
-                    # 2. (可選) 對結果進行四捨五入或取整數
-                    # 這裡使用 round() 保持一定精確度，您可以根據需求改為 .astype(int)
-                    rounded_lots = net_volume_in_lots.round(0).astype(int) 
-                    
-                    # 3. 將 Series 轉換為字串 (不含索引，且不含標題)
-                    # 使用 to_string(index=False, header=False) 取得純數據字串
-                    output_string = rounded_lots.to_string(index=False, header=False).strip()
-
-                except ValueError as e:
-                    print(f"❌ 錯誤：數據中包含無法轉換為數值的資料，無法換算成「張」。")
-                    # print(f"  詳細錯誤：{e}") # 方便除錯
-                     
-            else:
-                print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
-                net_volume_data = "無資料"
-            net_volume_data = net_volume_data.tolist()[0][:-4] + "千股"
-            
-            get_price = lookup_stock_price(
-                file_path=CSV_PATH,
-                stock_name=focused_stocks_name,
-                name_col=CSV_NAME_COLUMN,
-                price_col=CSV_PRICE_COLUMN
-            )
-            day_mmdd = f"{day_roll1[4:6]}/{day_roll1[-2:]}"
-            price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
-            price_percent = round(float(price_percent), 1)
-            if price_percent > 0:
-                price_percent = f"🔴 {abs(price_percent)}"
-            else:
-                price_percent = f"🟢 {abs(price_percent)}"
-            
-            Send_message += f"{day_mmdd} : {get_price}{price_percent}% ({net_volume_data})\n"
-            get_price_before = get_price
-            
-            # 呼叫函式
-            stock_indicators_df = get_stock_indicators(CSV_PATH, focused_stocks_name)
-
-            pa_ratio = stock_indicators_df.iloc[0]['殖利率(%)']
-            pe_ratio = stock_indicators_df.iloc[0]['本益比']
-            pb_ratio = stock_indicators_df.iloc[0]['股價淨值比']
-
-            Send_message_focused = f"\n--🎯【{focused_stocks_name}】個股資訊 🎯--" + f"\n         本益比 : {pe_ratio}%" + f"\n     股價淨值比 : {pb_ratio}" + f"\n         殖利率 : {pa_ratio}\n\n"
-
-    # 呼叫函式
-        top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)
-        Send_message_focused_all += f"\n=🥇={focused_stocks_name} 最近5日收盤價=🥇=\n{Send_message}"
-        Send_message_focused_all += Send_message_focused
-
+        # Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}\n--三大法人買超前20名--\n{top_10_positive_df}"
+        Send_message_ALL += f"\n=🥇{TARGET_STOCK_NAME}🥇最近5日收盤價=\n{Send_message}"
+    print(Send_message_ALL)
 
     # ---- line notify 發送訊息 ----
     # ➋ 載入 line_API.env 檔案中的變數
@@ -1457,13 +1227,8 @@ def main_run():
     analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} (庫存股)通知 ---\n" + Send_message_ALL
     send_stock_notification(LINE_USER_ID, analysis_report)
 
-    analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} 關注股票分析 ---\n" + Send_message_focused_all
+    analysis_report = f" 發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} 買超前20名 ---\n" + top_10_positive_df
     send_stock_notification(LINE_USER_ID, analysis_report)
-    
-    analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} 三大法人買超前20名 ---\n" + top_10_positive_df
-    send_stock_notification(LINE_USER_ID, analysis_report)
-    
-    Send_message_focused_all
 # ===========================================================
 # 先運行 schedule.clear() 將排程清除，避免習慣使用 jupyter notebook 整合開發環境的讀者，
 # 有殘存的排程，造成運行結果不如預期
@@ -1475,9 +1240,9 @@ schedule.every(1).seconds.do(main_run)
 #每小時運行一次
 #schedule.every(1).hour.do(main_run)
 
-
 # 每天 15:30 運行一次 get_price 函數
-#schedule.every().day.at('18:00').do(main_run)
+#schedule.every().day.at('08:00').do(main_run)
+#schedule.every().day.at('20:00').do(main_run)
 
 # 將 schedule.run_pending() 放在 while 無窮迴圈內
 while True:

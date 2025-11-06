@@ -117,15 +117,11 @@ try:
     
     # 庫存統計結果
     print(f"📦 【股票庫存統計】 (股數 > 0) 列表 (共 {len(inventory_list)} 筆):")
-    # print(inventory_list[:5], "..." if len(inventory_list) > 5 else "")
-    
-    # # 關注的股票結果
-    # print(f"\n👀 【關注的股票】 列表 (共 {len(watchlist_list)} 筆):")
-    # print(watchlist_list[:5], "..." if len(watchlist_list) > 5 else "")
     for stock in inventory_list:
         print(stock)
+ 
 
-
+    # 關注的股票結果
     print(f"\n👀 【關注的股票】 列表 (共 {len(watchlist_list)} 筆):")
     for stock in watchlist_list:
         print(stock)

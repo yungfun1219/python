@@ -22,7 +22,7 @@ LIST_FILE_PATH = BASE_DIR / "datas" / "raw" / "stocks_all.csv"
 RAW_DATA_DIR = BASE_DIR / "datas" / "raw" / "1_STOCK_DAY"
 
 # 批量處理時，此變數將被清單中的代號取代
-TARGET_CODE = '1101' 
+TARGET_CODE = '1802' 
 
 # 1. 確定當前月份 (以當前時間為準)
 current_date = date.today()
