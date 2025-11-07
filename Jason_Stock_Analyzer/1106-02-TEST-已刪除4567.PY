@@ -723,9 +723,9 @@ def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch
         print(f"❌ 寫入摘要日誌檔案發生錯誤: {e}")
 
 # --- 10 大 TWSE 報告抓取函式 (分頁與個股) ---
+# (1/10) 抓取指定日期和股票代號的 STOCK_DAY 報告 (每日成交資訊)。
 def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFrame]:
     """
-    (1/10) 抓取指定日期和股票代號的 STOCK_DAY 報告 (每日成交資訊)。
     URL: https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
@@ -750,9 +750,9 @@ def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFra
         return df
     return None
 
+#(2/10) 抓取指定日期的 MI_INDEX 報告 (所有類股成交統計)。
 def fetch_twse_mi_index(target_date: str) -> Optional[pd.DataFrame]:
     """
-    (2/10) 抓取指定日期的 MI_INDEX 報告 (所有類股成交統計)。
     URL: https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
@@ -777,9 +777,9 @@ def fetch_twse_mi_index(target_date: str) -> Optional[pd.DataFrame]:
         return df
     return None
 
+# (3/10) 抓取指定日期的 BWIBBU_d 報告 (發行量加權股價指數類股日成交量值及報酬率)。
 def fetch_twse_bwibbu_d(target_date: str) -> Optional[pd.DataFrame]:
     """
-    (3/10) 抓取指定日期的 BWIBBU_d 報告 (發行量加權股價指數類股日成交量值及報酬率)。
     URL: https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
@@ -805,11 +805,10 @@ def fetch_twse_bwibbu_d(target_date: str) -> Optional[pd.DataFrame]:
         return df
     return None
 
+# (8/10) 抓取指定日期的 BFI82U 報告 (三大法人買賣超彙總表 - 日)。
 def fetch_twse_bfi82u(target_date: str) -> Optional[pd.DataFrame]:
     """
-    (8/10) 抓取指定日期的 BFI82U 報告 (三大法人買賣超彙總表 - 日)。
     URL: https://www.twse.com.tw/rwd/zh/fund/BFI82U
-    
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
     base_url = "https://www.twse.com.tw/rwd/zh/fund/BFI82U"
@@ -835,9 +834,9 @@ def fetch_twse_bfi82u(target_date: str) -> Optional[pd.DataFrame]:
         return df
     return None
 
+# (9/10) 抓取指定日期的 TWT43U 報告 (外資及陸資買賣超彙總表)。
 def fetch_twse_twt43u(target_date: str) -> Optional[pd.DataFrame]:
     """
-    (9/10) 抓取指定日期的 TWT43U 報告 (外資及陸資買賣超彙總表)。
     URL: https://www.twse.com.tw/rwd/zh/fund/TWT43U
     
     """
@@ -864,9 +863,9 @@ def fetch_twse_twt43u(target_date: str) -> Optional[pd.DataFrame]:
         return df
     return None
 
+# (10/10) 抓取指定日期的 TWT44U 報告 (投信買賣超彙總表)。
 def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
     """
-    (10/10) 抓取指定日期的 TWT44U 報告 (投信買賣超彙總表)。
     URL: https://www.twse.com.tw/rwd/zh/fund/TWT44U
     """
     if not re.fullmatch(r'\d{8}', target_date): return None
@@ -891,9 +890,9 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
         return df
     return None
 
+# (11/10) 抓取指定日期的 T86 報告 (三大法人買賣超 - 依類別)。
 def fetch_twse_t86(target_date: str) -> Optional[pd.DataFrame]:
     """
-    抓取指定日期的 T86 報告 (三大法人買賣超彙總表 - 依類別)。
     URL: https://www.twse.com.tw/rwd/zh/fund/T86
     
     :param target_date: 查詢日期，格式為 YYYYMMDD (例如: 20251031)
