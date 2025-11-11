@@ -1397,7 +1397,7 @@ def main_run():
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
                 net_volume_data = "無資料"
-            net_volume_data = net_volume_data.tolist()[0][:-4] + "千股"
+            net_volume_data = net_volume_data.tolist()[0][:-4] + "張"
             
             get_price = lookup_stock_price(
                 file_path=CSV_PATH,
@@ -1409,11 +1409,11 @@ def main_run():
             price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
             price_percent = round(float(price_percent), 1)
             if price_percent > 0:
-                price_percent = f"🔴 {abs(price_percent)}"
+                price_percent = f"🔴{abs(price_percent)}"
             else:
-                price_percent = f"🟢 {abs(price_percent)}"
+                price_percent = f"🟢{abs(price_percent)}"
             
-            Send_message += f"{day_mmdd}:{get_price}{price_percent}% ({net_volume_data})\n"
+            Send_message += f"{day_mmdd}:{get_price}{price_percent}%({net_volume_data})\n"
             get_price_before = get_price
             
             # 呼叫函式
@@ -1423,15 +1423,14 @@ def main_run():
             pe_ratio = stock_indicators_df.iloc[0]['本益比']
             pb_ratio = stock_indicators_df.iloc[0]['股價淨值比']
             
-            message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--" + f"\n         本益比  : {pe_ratio}%" + f"\n     股價淨值比: {pb_ratio}" + f"\n         殖利率  : {pa_ratio}\n\n"
-        
-            
-    
+           # message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--" + f"\n         本益比  : {pe_ratio}%" + f"\n     股價淨值比: {pb_ratio}" + f"\n         殖利率  : {pa_ratio}\n\n"
+            message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--\n  本益比  : {pe_ratio}%\n股價淨值比: {pb_ratio}\n  殖利率  : {pa_ratio}\n\n"
+
 
     # 呼叫函式
         top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)
         # Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}\n--三大法人買超前20名--\n{top_10_positive_df}"
-        Send_message_ALL += f"\n=🥇={TARGET_STOCK_NAME} 最近5日收盤價=🥇=\n{Send_message}"
+        Send_message_ALL += f"\n=🥇{TARGET_STOCK_NAME} 最近5日收盤價🥇=\n{Send_message}"
         Send_message_ALL += message_add
         
     print(Send_message_ALL)
