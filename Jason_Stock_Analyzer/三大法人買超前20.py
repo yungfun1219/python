@@ -126,7 +126,7 @@ def get_top_10_institutional_trades_filtered(
 # --- 🎯 執行程式 ---
 
 # 請將此處的路徑替換為您本地電腦上的實際檔案路徑
-file_path = r"D:\Python_repo\python\Jason_Stock_Analyzer\datas\raw\11_T86\20251031_T86_InstitutionalTrades.csv"
+file_path = r"D:\Python_repo\python\Jason_Stock_Analyzer\datas\raw\11_T86\20251107_T86_InstitutionalTrades.csv"
 
 # 呼叫函式
 top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)

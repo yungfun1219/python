@@ -1,30 +1,32 @@
-import requests
-import pandas as pd
-from io import StringIO
-import urllib3
-import re
-import time as time_module
-from datetime import date, datetime, timedelta, time as time_TimeClass
-from typing import Optional, Tuple, List
-from pathlib import Path
+#標準函式庫
 import os
-import utils.jason_utils as jutils
-import get_stocks_company_all 
-import pathlib
+import sys
+import re
 import shutil
-from dotenv import load_dotenv # ➊ 匯入函式庫
-import numpy as np # 導入 numpy 以便進行數值操作
-import schedule
-import keyboard  # 新增: 用於偵測鍵盤輸入
+from io import StringIO
+import pathlib     # as pathlib
+from datetime import date, datetime, timedelta, time as time_TimeClass
 
+#第三方函式庫
+import numpy as np # 用於數值操作
+import pandas as pd # 用於資料處理與分析
+import requests
+import schedule
+import keyboard  # 用於監聽鍵盤事件
+from dotenv import load_dotenv # ➊ 匯入函式庫
+from typing import Optional, Tuple, List
+import time as time_module # 用於 sleep() 或 time()
+
+#本地模組
+import get_stocks_company_all 
+from utils import jason_utils as jutils
 
 # 抑制當 verify=False 時彈出的 InsecureRequestWarning 警告
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 # ==========================================================
 # 參數設定  --- 配置 (Configuration) ---
 # ==========================================================
-LOG_FETCH_DATE_FILENAME = "last_get_date.log" # 定義記錄上次成功抓取日期的日誌檔案名稱
 SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
 
 # 讀取關注的股票
@@ -418,8 +420,8 @@ def copy_file_to_directory(source: str, destination: str):
     """
     將指定檔案複製到目標目錄。
     """
-    source_path = Path(source)
-    destination_dir_path = Path(destination)
+    source_path = pathlib.Path(source)
+    destination_dir_path = pathlib.Path(destination)
     
     print(f"✅ 正在準備複製檔案...")
     print(f"來源: {source_path}")
@@ -460,7 +462,7 @@ def lookup_stock_price(file_path: str, stock_name: str, name_col: str, price_col
     """
     從指定的 CSV 檔案中查詢特定證券的收盤價。
     """
-    file = Path(file_path)
+    file = pathlib.Path(file_path)
     
     #print(f"✅ 正在嘗試讀取檔案: {file.name}")
     #print(f"🔍 查詢目標: {stock_name}")
@@ -591,7 +593,7 @@ def find_last_n_trading_days_with_time_check(file_path, n=6):
     return last_n_days
 
 # 從 Excel 檔案中讀取股票庫存，將其另存為 CSV 檔案。
-def extract_excel_sheet_filter_and_save(excel_file_path: str, sheet_name: str, filter_column: str, filter_value: any, output_dir: str = None) -> Path:
+def extract_excel_sheet_filter_and_save(excel_file_path: str, sheet_name: str, filter_column: str, filter_value: any, output_dir: str = None) -> pathlib.Path:
     """
     從指定的 Excel 檔案中讀取特定工作表，跳過第二行，篩選資料後，將其另存為 CSV 檔案。
 
@@ -606,7 +608,7 @@ def extract_excel_sheet_filter_and_save(excel_file_path: str, sheet_name: str, f
         Path: 儲存成功的 CSV 檔案路徑。
     """
     
-    original_path = Path(excel_file_path)
+    original_path = pathlib.Path(excel_file_path)
     
     if not original_path.exists():
         raise FileNotFoundError(f"錯誤：找不到 Excel 檔案在路徑：{excel_file_path}")
@@ -664,7 +666,7 @@ def extract_excel_sheet_filter_and_save(excel_file_path: str, sheet_name: str, f
     if output_dir is None:
         output_dir = original_path.parent
     else:
-        output_dir = Path(output_dir)
+        output_dir = pathlib.Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("_%Y%m%d_%H%M%S")
@@ -799,7 +801,7 @@ def _fetch_twse_data(url: str) -> Optional[str]:
 
 # 將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
 def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch_date: str, summary_filename_prefix: str = SUMMARY_LOG_FILENAME_PREFIX):
-    BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+    BASE_DIR = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
     OUTPUT_DIR = BASE_DIR / "datas" / "logs"
 
     # 確保日誌資料夾存在
@@ -1194,13 +1196,18 @@ def fetch_twse_t86(target_date: str) -> Optional[pd.DataFrame]:
 def main_run():
 
     TARGET_DATE = date.today().strftime("%Y%m%d") 
-
+    Yesterday_day = (date.today() - timedelta(days=1)).strftime("%Y%m%d")
+    Now_time_hour = datetime.now().strftime("%H")  #取得目前系統時間的「幾點鐘」
+    Now_day_time = datetime.now().strftime("%Y-%m-%d %H:%M")  #取得目前系統時間的日期及時間「例如 2025-11-12 11:12」
+   
+    if Now_time_hour < '21':  # 假設在晚上9點後，抓取當天的資料
+        TARGET_DATE = Yesterday_day  # 否則抓取昨天的資料
+    
     print("\n" + "="*50)
-    print("--- 程式開始執行：TWSE 報告批量抓取 ---")
+    print("--- 程式開始執行：TWSE 報告資料抓取 ---")
     print("="*50 + "\n")
-
-
-    # 設置一個列表來儲存結果，便於最終預覽
+    
+    # 設置一個列表來儲存結果(抓取的網路資料)，便於最終預覽
     results = []
 
     # 1. STOCK_DAY (個股日成交資訊)
@@ -1351,7 +1358,7 @@ def main_run():
             TARGET_DATE = row.replace("/", "")
             day_roll.append(TARGET_DATE)
 
-        BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+        BASE_DIR = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
 
         if recent_trading_days_df is not None:
             print(f"\n--{TARGET_STOCK_NAME}最近5個交易日--")
@@ -1485,13 +1492,12 @@ def main_run():
 
 
     # 發送庫存股通知
-    now = datetime.now()
-    format_string = "%Y-%m-%d %H:%M"
+    
 
-    analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} (庫存股)通知 ---\n" + Send_message_ALL
+    analysis_report = f"發送時間: {Now_day_time}\n--- {TARGET_DATE} (庫存股)通知 ---\n" + Send_message_ALL
     send_stock_notification(LINE_USER_ID, analysis_report)
 
-    analysis_report = f"發送時間: {now.strftime(format_string)}\n--- {TARGET_DATE} 三大法人買超前20名 ---\n" + top_10_positive_df
+    analysis_report = f"發送時間: {Now_day_time}\n--- {TARGET_DATE} 三大法人買超前20名 ---\n" + top_10_positive_df
     send_stock_notification(LINE_USER_ID, analysis_report)
 # ===========================================================
 # 先運行 schedule.clear() 將排程清除，避免習慣使用 jupyter notebook 整合開發環境的讀者，
@@ -1499,14 +1505,15 @@ def main_run():
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-schedule.every(1).seconds.do(main_run)
+#schedule.every(1).seconds.do(main_run)
 
 #每小時運行一次
 #schedule.every(1).hour.do(main_run)
 
 
 # 每天 15:30 運行一次 get_price 函數
-#schedule.every().day.at('18:00').do(main_run)
+schedule.every().day.at('21:00').do(main_run)
+schedule.every().day.at('08:00').do(main_run)
 
 # 將 schedule.run_pending() 放在 while 無窮迴圈內
 while True:
