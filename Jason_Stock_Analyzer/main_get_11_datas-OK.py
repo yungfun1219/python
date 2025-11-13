@@ -29,6 +29,14 @@ requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.
 # ==========================================================
 SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
 
+# 設定鍵盤監控 -- 1. 初始化運行狀態 (確保是全局變數)
+running = True
+# """按鍵 [Q] 停止程式"""
+def stop_program():
+    print("\n\n👋 偵測到 'Q' 鍵，程式即將安全退出...")
+    global running
+    running = False
+    
 # 讀取關注的股票
 def get_stock_names_from_excel(file_path: str, sheet_name: str, column_name: str) -> Optional[pd.Series]:
     """
@@ -1194,7 +1202,26 @@ def fetch_twse_t86(target_date: str) -> Optional[pd.DataFrame]:
 
 # 設定您想要抓取的目標日期 (只需修改此處即可抓取所有報告的資料)
 def main_run():
+    #----------------
+    global running # 引用全局變數
+    
+    if not running:
+        # 如果在等待執行的排程隊列中，檢查到不運行，則直接跳過
+        print("\n[定時任務]: 偵測到退出信號，跳過本次執行。")
+        return
 
+    print("\n[定時任務]: main_run 正在執行...")
+    
+    # for i in range(3):
+    #     if not running:
+    #         print("[定時任務]: 執行中途偵測到退出信號，提前中止！")
+    #         return # 立即退出任務
+        
+    #     print(f"[定時任務]: 步驟 {i+1} 進行中...")
+    #     time_module.sleep(1) # 縮短每次休眠，讓檢查更頻繁
+
+    print("[定時任務]: main_run 執行完畢。")
+    #--------------
     TARGET_DATE = date.today().strftime("%Y%m%d") 
     Yesterday_day = (date.today() - timedelta(days=1)).strftime("%Y%m%d")
     Now_time_hour = datetime.now().strftime("%H")  #取得目前系統時間的「幾點鐘」
@@ -1500,21 +1527,50 @@ def main_run():
     analysis_report = f"發送時間: {Now_day_time}\n--- {TARGET_DATE} 三大法人買超前20名 ---\n" + top_10_positive_df
     send_stock_notification(LINE_USER_ID, analysis_report)
 # ===========================================================
+
+# 1. 初始化運行狀態
+running = True
+
 # 先運行 schedule.clear() 將排程清除，避免習慣使用 jupyter notebook 整合開發環境的讀者，
 # 有殘存的排程，造成運行結果不如預期
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
-#schedule.every(1).seconds.do(main_run)
-
+# schedule.every(200).seconds.do(main_run)
+# print("✅ 已設定定時任務：每1秒執行 main_run。")
 #每小時運行一次
-#schedule.every(1).hour.do(main_run)
-
+# schedule.every(1).hour.do(main_run)
+# print("✅ 已設定定時任務：每小時執行 main_run。")
 
 # 每天 15:30 運行一次 get_price 函數
 schedule.every().day.at('21:00').do(main_run)
 schedule.every().day.at('08:00').do(main_run)
+print("✅ 已設定定時任務：21:00及08:00 執行 main_run。")
 
-# 將 schedule.run_pending() 放在 while 無窮迴圈內
-while True:
-    schedule.run_pending()
+# 3. 設定鍵盤熱鍵 (非阻塞式監聽)
+keyboard.add_hotkey('1', main_run)
+keyboard.add_hotkey('q', stop_program)
+print("✅ 已設定鍵盤熱鍵：[1] 執行main_run, [Q] 停止程式。")
+
+print("\n--- 程式開始運行 ---")
+print("主程式和排程監聽中...")
+
+# --- 主循環 (Main Loop) ---
+try:
+    while running:
+        # 1. 檢查是否有排程任務需要運行
+        schedule.run_pending()
+        
+        # 2. 讓主循環短暫休眠，同時讓 CPU 資源釋放給其他行程 (包括鍵盤監聽)
+        # 這裡設定一個較短的休眠時間，確保對排程和鍵盤輸入的響應更即時。
+        time_module.sleep(1)
+        
+except KeyboardInterrupt:
+    # 允許使用 Ctrl+C 退出
+    print("\n程式被 Ctrl+C 中斷退出。")
+
+finally:
+# 3. 移除所有註冊的熱鍵 (清理環境)
+    keyboard.unhook_all()
+    print("所有鍵盤監聽已關閉。")
+    print("程式安全退出。")
