@@ -1464,22 +1464,22 @@ def main_run():
            # message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--" + f"\n         本益比  : {pe_ratio}%" + f"\n     股價淨值比: {pb_ratio}" + f"\n         殖利率  : {pa_ratio}\n\n"
             message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--\n  本益比  : {pe_ratio}%\n股價淨值比: {pb_ratio}\n  殖利率  : {pa_ratio}\n\n"
             
-            
+        if total_price_percent > 0:
+            total_price_percent = f"🔴 {abs(total_price_percent)}%"
+        else:
+            total_price_percent = f"🟢 {abs(total_price_percent)}%"
 
     # 呼叫函式
         top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)
         # Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}\n--三大法人買超前20名--\n{top_10_positive_df}"
         Send_message_ALL += f"\n=🥇{TARGET_STOCK_NAME} 最近5日收盤價🥇=\n{Send_message}"
+        Send_message_ALL += f"== 近5日績效:{total_price_percent}=\n"
         Send_message_ALL += message_add
         
-        if total_price_percent > 0:
-            total_price_percent = f"🔴{abs(total_price_percent/5)}%"
-        else:
-            total_price_percent = f"🟢{abs(total_price_percent)/5}%"
+
         
-        Send_message_ALL += f"\n=近5日績效={total_price_percent}=\n"
     print(Send_message_ALL)
-    sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行ㄅ
+    #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行ㄅ
     # ---- line notify 發送訊息 ----
     # ➋ 載入 line_API.env 檔案中的變數
     # 注意：如果您使用 .env 以外的檔名 (如 line_token.env)，需要指定檔名
