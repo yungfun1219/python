@@ -1399,6 +1399,7 @@ def main_run():
             )
         print("前5交易日收盤價:", get_price_before)
         
+        total_price_percent = 0
         for day_roll1 in day_roll[1:]:
             CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll1}_BWIBBU_d_IndexReturn.csv"
 
@@ -1430,7 +1431,7 @@ def main_run():
                      
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
-                net_volume_data = "無資料"
+                net_volume_data = "0"
             net_volume_data = net_volume_data.tolist()[0][:-4] + "張"
             
             get_price = lookup_stock_price(
@@ -1442,6 +1443,9 @@ def main_run():
             day_mmdd = f"{day_roll1[4:6]}/{day_roll1[-2:]}"
             price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
             price_percent = round(float(price_percent), 1)
+            
+            total_price_percent += int(price_percent)
+            
             if price_percent > 0:
                 price_percent = f"🔴{abs(price_percent)}"
             else:
@@ -1459,16 +1463,23 @@ def main_run():
             
            # message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--" + f"\n         本益比  : {pe_ratio}%" + f"\n     股價淨值比: {pb_ratio}" + f"\n         殖利率  : {pa_ratio}\n\n"
             message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--\n  本益比  : {pe_ratio}%\n股價淨值比: {pb_ratio}\n  殖利率  : {pa_ratio}\n\n"
-
+            
+        if total_price_percent > 0:
+            total_price_percent = f"🔴 {abs(total_price_percent)}%"
+        else:
+            total_price_percent = f"🟢 {abs(total_price_percent)}%"
 
     # 呼叫函式
         top_10_positive_df = get_top_10_institutional_trades_filtered(file_path)
         # Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}\n--三大法人買超前20名--\n{top_10_positive_df}"
         Send_message_ALL += f"\n=🥇{TARGET_STOCK_NAME} 最近5日收盤價🥇=\n{Send_message}"
+        Send_message_ALL += f"== 近5日績效:{total_price_percent}=\n"
         Send_message_ALL += message_add
         
-    print(Send_message_ALL)
 
+        
+    print(Send_message_ALL)
+    #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行ㄅ
     # ---- line notify 發送訊息 ----
     # ➋ 載入 line_API.env 檔案中的變數
     # 注意：如果您使用 .env 以外的檔名 (如 line_token.env)，需要指定檔名
