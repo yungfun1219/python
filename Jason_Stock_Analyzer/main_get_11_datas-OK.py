@@ -31,6 +31,7 @@ SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
 
 # 設定鍵盤監控 -- 1. 初始化運行狀態 (確保是全局變數)
 running = True
+
 # """按鍵 [Q] 停止程式"""
 def stop_program():
     print("\n\n👋 偵測到 'Q' 鍵，程式即將安全退出...")
@@ -41,7 +42,6 @@ def stop_program():
 def get_stock_names_from_excel(file_path: str, sheet_name: str, column_name: str) -> Optional[pd.Series]:
     """
     讀取 Excel 檔案中指定工作表的指定欄位數據。
-
     Args:
         file_path (str): Excel 檔案的完整路徑。
         sheet_name (str): 工作表的標籤名稱 (e.g., '【關注的股票】')。
@@ -267,7 +267,7 @@ def get_top_20_institutional_trades_filtered(
     actual_display_cols = ['證券名稱', volume_col_display_name]
 
     # 設定每個欄位的最小寬度，以利置中 (中文字佔 2 寬度)
-    col_space_width = 8 
+    col_space_width = 10 
 
     # 使用 to_string 配合 col_space 和 justify='center'
     print(
@@ -293,7 +293,7 @@ def get_top_20_institutional_trades_filtered(
             padding_needed = target_length - current_length 
             new_current_volume_column = current_volume_column.ljust(padding_needed, ' ')
         
-        top_20_trades += f"{index_no_str}." + f" {new_current_volume_column} " + f" ({rol[volume_col_display_name]}張)\n"
+        top_20_trades += f"{index_no_str}." + f"{new_current_volume_column}" + f" ({rol[volume_col_display_name]}張)⚪️🔴\n"
         index_no += 1
         
     return top_20_trades
@@ -478,51 +478,112 @@ def copy_file_to_directory(source: str, destination: str):
     except Exception as e:
         print(f"❌ 複製檔案時發生錯誤: {e}")
 
+def _read_local_csv(file_path: pathlib.Path) -> Optional[pd.DataFrame]:
+    """
+    讀取本地 CSV 檔案，並處理不存在的情況。
+    """
+    if not file_path.exists():
+        # print(f"❌ 錯誤：找不到檔案 {file_path}")
+        return None
+    try:
+        # 假設本地儲存的 CSV 已經是 UTF-8-SIG 編碼
+        df = pd.read_csv(file_path, encoding='utf-8-sig')
+        # 清除欄位名稱前後的空白
+        df.columns = df.columns.str.strip()
+        return df
+    except Exception as e:
+        print(f"❌ 錯誤：讀取本地 CSV 檔案 {file_path} 時失敗: {e}")
+        return None
 # 從指定的 CSV 檔案中查詢特定證券的收盤價。
-def lookup_stock_price(file_path: str, stock_name: str, name_col: str, price_col: str):
+def lookup_stock_price(file_path: pathlib.Path, stock_name: str, name_col: str, price_col: str) -> Optional[str]:
     """
-    從指定的 CSV 檔案中查詢特定證券的收盤價。
+    從指定的 BWIBBU CSV 檔案中查找特定股票的收盤價。
+    
+    修正: 確保在返回價格前，移除千位分隔符號 (,) 以避免 ValueError。
     """
-    file = pathlib.Path(file_path)
-    
-    #print(f"✅ 正在嘗試讀取檔案: {file.name}")
-    #print(f"🔍 查詢目標: {stock_name}")
-    
-    if not file.exists():
-        print(f"❌ 錯誤：找不到檔案在路徑：{file_path}")
-        return
+    df = _read_local_csv(file_path)
+    if df is None:
+        print(f"  > 警告: 價格檔案 {file_path.name} 缺失或讀取失敗。")
+        return None
 
     try:
-        # 讀取 CSV 檔案，使用 Big5 編碼 (臺灣金融數據常用)，並清理欄位名稱的空白
-        df = pd.read_csv(file_path, encoding='utf-8', skipinitialspace=True)
-        df.columns = df.columns.str.strip()
-        
-        # 檢查關鍵欄位是否存在
-        if name_col not in df.columns or price_col not in df.columns:
-            print(f"❌ 錯誤：CSV 檔案中缺少必要的欄位 ('{name_col}' 或 '{price_col}')。")
-            return
-
-        # 確保比對欄位是字串且清理空白
-        df[name_col] = df[name_col].astype(str).str.strip()
-
-        # 執行篩選
+        # 尋找匹配的股票名稱
         result = df[df[name_col] == stock_name]
+        if not result.empty and price_col in result.columns:
+            price_raw = result.iloc[0][price_col]
 
-        if result.empty:
-            print(f"\n⚠️ 警告：在檔案中找不到 '{stock_name}' 的收盤價資料。")
-            return
-
-        # 取得收盤價，只取第一個結果（因為可能有多行相同名稱，但通常只取第一筆）
-        price = result.iloc[0][price_col]
-        
-        # print("\n" + "="*50)
-        # print(f"🎉 查詢結果 ({file.name})")
-        # print(f"證券名稱: {stock_name}")
-        # print(f"收盤價 ({price_col}): **{price}**")
-        # print("="*50)
-        return price    
+            # --- 價格清理與轉換 ---
+            price_float = None
+            if price_raw is not None:
+                # 1. 如果是字串，移除逗號和前後空白
+                if isinstance(price_raw, str):
+                    price_clean_str = price_raw.replace(',', '').strip()
+                else:
+                    price_clean_str = str(price_raw)
+                
+                # 2. 嘗試轉換為 float
+                try:
+                    price_float = float(price_clean_str)
+                except (ValueError, TypeError):
+                    print(f"  > 警告: {stock_name} 的價格 '{price_raw}' 無法轉換為數字。")
+                    return None
+            
+            if price_float is not None:
+                # 返回格式化為兩位小數的價格字串
+                return f"{price_float:.2f}"
+            else:
+                return None
+        else:
+            # print(f"  > 警告: 找不到 {stock_name} 的價格資料。")
+            return None
     except Exception as e:
-        print(f"❌ 讀取或處理檔案時發生錯誤：{e}")
+        print(f"  > 價格查詢失敗: {e}")
+        return None
+    
+# def lookup_stock_price(file_path: str, stock_name: str, name_col: str, price_col: str):
+#     """
+#     從指定的 CSV 檔案中查詢特定證券的收盤價。
+#     """
+#     file = pathlib.Path(file_path)
+    
+#     #print(f"✅ 正在嘗試讀取檔案: {file.name}")
+#     #print(f"🔍 查詢目標: {stock_name}")
+    
+#     if not file.exists():
+#         print(f"❌ 錯誤：找不到檔案在路徑：{file_path}")
+#         return
+
+#     try:
+#         # 讀取 CSV 檔案，使用 Big5 編碼 (臺灣金融數據常用)，並清理欄位名稱的空白
+#         df = pd.read_csv(file_path, encoding='utf-8', skipinitialspace=True)
+#         df.columns = df.columns.str.strip()
+        
+#         # 檢查關鍵欄位是否存在
+#         if name_col not in df.columns or price_col not in df.columns:
+#             print(f"❌ 錯誤：CSV 檔案中缺少必要的欄位 ('{name_col}' 或 '{price_col}')。")
+#             return
+
+#         # 確保比對欄位是字串且清理空白
+#         df[name_col] = df[name_col].astype(str).str.strip()
+
+#         # 執行篩選
+#         result = df[df[name_col] == stock_name]
+
+#         if result.empty:
+#             print(f"\n⚠️ 警告：在檔案中找不到 '{stock_name}' 的收盤價資料。")
+#             return
+
+#         # 取得收盤價，只取第一個結果（因為可能有多行相同名稱，但通常只取第一筆）
+#         price = result.iloc[0][price_col]
+        
+#         # print("\n" + "="*50)
+#         # print(f"🎉 查詢結果 ({file.name})")
+#         # print(f"證券名稱: {stock_name}")
+#         # print(f"收盤價 ({price_col}): **{price}**")
+#         # print("="*50)
+#         return price    
+#     except Exception as e:
+#         print(f"❌ 讀取或處理檔案時發生錯誤：{e}")
 
 # 從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
 def find_last_n_trading_days_with_time_check(file_path, n=6):
@@ -699,56 +760,6 @@ def extract_excel_sheet_filter_and_save(excel_file_path: str, sheet_name: str, f
 
     return output_csv_path
 
-# 讀取 CSV 檔案，篩選出在今天或今天之前的所有日期，並以 YYYYMMDD 字串格式返回。
-def get_past_dates_in_yyyymmdd(file_path, date_column_name='日期'):
-    """
-    讀取 CSV 檔案，篩選出在今天或今天之前的所有日期，並以 YYYYMMDD 字串格式返回。
-
-    Args:
-        file_path (str): CSV 檔案的路徑。
-        date_column_name (str): CSV 中包含日期的欄位名稱。預設為 'Date'。
-
-    Returns:
-        list: 包含所有過去日期的 YYYYMMDD 格式字串列表，如果出錯則返回空列表。
-    """
-    try:
-        # 1. 讀取 CSV 檔案
-        df = pd.read_csv(file_path)
-
-        # 2. 確保日期欄位是 datetime 格式
-        # errors='coerce' 會將無法解析的值設為 NaT
-        df[date_column_name] = pd.to_datetime(df[date_column_name], errors='coerce')
-
-        # 3. 獲取今天的日期 (只取年月日部分)
-        # 今天的日期為 2025-11-01
-        today = pd.to_datetime(datetime.now().date()) 
-        
-        # 4. 篩選出今天之前 (即 <= 今天) 的日期資料
-        # 篩選條件是：日期欄位值 <= 今天的日期
-        past_dates_df = df[df[date_column_name] <= today]
-
-        # 5. 移除日期為 NaT 的列
-        past_dates_df = past_dates_df.dropna(subset=[date_column_name])
-        
-        # 6. 排序 (可選，通常日期資料按時間順序排列較好)
-        past_dates_df = past_dates_df.sort_values(by=date_column_name)
-        
-        # 7. **【關鍵】格式化並返回日期列表**
-        # 使用 .dt.strftime('%Y%m%d') 將 datetime 物件轉換為 YYYYMMDD 格式的字串
-        yyyymmdd_list = past_dates_df[date_column_name].dt.strftime('%Y%m%d').tolist()
-        
-        return yyyymmdd_list
-
-    except FileNotFoundError:
-        print(f"錯誤：找不到檔案在路徑：{file_path}")
-        return []
-    except KeyError:
-        print(f"錯誤：CSV 檔案中找不到名為 '{date_column_name}' 的日期欄位。")
-        return []
-    except Exception as e:
-        print(f"發生其他錯誤：{e}")
-        return []
-
 # 檢查檔案是否存在且確實是一個檔案 (非資料夾)
 def check_folder_and_create(folder_path: str):
     """
@@ -761,6 +772,7 @@ def check_folder_and_create(folder_path: str):
     jutils.check_and_create_folder(OUTPUT_DIR)
     jutils.check_file_exists(filename_new)
     return True
+
 
 # 共用的輔助函式，用於處理 TWSE 的 Big5 編碼和 Pandas 讀取邏輯。
 def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame]:
@@ -819,57 +831,6 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         print(f"❌ 發生其他錯誤: {e}")
 
     return None
-
-# 將所有報告的抓取結果摘要寫入日誌檔案，並同時列印到控制台。
-def log_summary_results(results: List[Tuple[str, Optional[pd.DataFrame]]], fetch_date: str, summary_filename_prefix: str = SUMMARY_LOG_FILENAME_PREFIX):
-    BASE_DIR = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
-    OUTPUT_DIR = BASE_DIR / "datas" / "logs"
-
-    # 確保日誌資料夾存在
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    
-    log_file_name = f"{summary_filename_prefix}_{fetch_date}.log"
-    filename_new = OUTPUT_DIR / log_file_name 
-    
-    # 建立摘要內容字串
-    summary_lines = []
-    
-    header = "\n" + "="*50 + "\n"
-    header += f"--- {fetch_date} 報告抓取結果摘要 ---\n"
-    header += "="*50
-    summary_lines.append(header)
-    
-    success_count = 0
-    fail_count = 0
-
-    for name, df in results:
-        if df is not None:
-            line = f"\n[🟢 {name} (成功)] 數據筆數: {len(df)}"
-            success_count += 1
-        else:
-            line = f"[🔴 {name} (失敗)] 無數據或抓取錯誤。"
-            fail_count += 1
-        summary_lines.append(line)
-
-    footer = "\n" + "="*50
-    footer += f"\n總結：成功 {success_count} 個報告, 失敗 {fail_count} 個報告。"
-    footer += "\n所有成功抓取的 CSV 檔案已儲存至對應的 'datas/raw' 子資料夾中。"
-    footer += "\n--- 日誌記錄結束 ---\n"
-    
-    summary_lines.append(footer)
-    
-    log_content = "\n".join(summary_lines)
-
-    # 寫入日誌檔案
-    try:
-        with open(filename_new, 'w', encoding='utf-8') as f:
-            f.write(log_content)
-        
-        # 同時列印到控制台
-        print(log_content)
-        print(f"[日誌] 成功將摘要結果寫入檔案：{filename_new}")
-    except Exception as e:
-        print(f"❌ 寫入摘要日誌檔案發生錯誤: {e}")
 
 # --- 10 大 TWSE 報告抓取函式 (分頁與個股) ---
 def fetch_twse_stock_day(target_date: str, stock_no: str) -> Optional[pd.DataFrame]:
@@ -1158,6 +1119,7 @@ def fetch_twse_twt44u(target_date: str) -> Optional[pd.DataFrame]:
         return df
     return None
 
+# 抓取指定日期的 T86 報告 (三大法人買賣超彙總表 - 依類別)。
 def fetch_twse_t86(target_date: str) -> Optional[pd.DataFrame]:
     """
     抓取指定日期的 T86 報告 (三大法人買賣超彙總表 - 依類別)。
@@ -1213,153 +1175,351 @@ def fetch_twse_t86(target_date: str) -> Optional[pd.DataFrame]:
     print(f"❌ 數據處理失敗，可能該日期 ({target_date}) 為非交易日或網站資料結構改變。")
     return None
 
-# 檢查是否為交易日，若是則回傳True，否則回傳"False"，下一個交易日
-def check_next_date_in_csv(file_path: str, date_to_check: str, date_column_name: str = '日期') -> Union[bool, pd.Series]:
+# 根據指定日期與時間（21:00截止）提供往前6個交易日，前一個交易日則為df[-1]
+def get_previous_n_trading_days(
+    file_path: str,
+    datetime_to_check: str,
+    n_days: int = 6,        # 往前提出6個交易日
+    CUTOFF_HOUR: int = 21,  # 設定截止時間為 21:00
+    date_column_name: str = '日期') -> Union[List[str], None]:
     """
-    檢查指定日期字串是否出現在 CSV 檔案的特定欄位中。
+    根據指定日期與時間（21:00截止）確定一個有效查詢日期，
+    並從該日期（含）開始向前追溯 N 個最近的交易日。
     Args:
-        file_path (str): holidays_all.csv 檔案的完整路徑。
-        date_to_check (str): 要檢查的日期字串，例如 '2025/10/10'。
+        file_path (str): 包含交易日清單的 CSV 檔案完整路徑 (假設檔案中列出的是交易日)。
+        datetime_to_check (str): 要檢查的日期和時間字串，例如 '2025/10/10 15:30:00'。
+        n_days (int): 要獲取的上一個交易日的數量 (預設為 6)。
         date_column_name (str): 檔案中包含日期的欄位名稱，預設為 '日期'。
     Returns:
-        Union[bool, pd.Series]: 如果找到，返回包含匹配行的 Series (布林值)，
-                                如果未找到或檔案不存在，返回 False。返回下個交易日的 Series (布林值)，
+        Union[List[str], None]: 包含 N 個交易日字串（'YYYY/MM/DD' 格式）的列表，
+                                 或發生錯誤時回傳 None。
     """
-    #print(f"🔍 正在檢查檔案: {os.path.basename(file_path)}")
-    #print(f"目標日期: {date_to_check}")
-
+    
+    # 檢查檔案路徑
     if not os.path.exists(file_path):
-        print("【錯誤】檔案路徑不存在，請確認路徑是否正確。")
-        return False, None
+        print(f"【錯誤】檔案路徑不存在，請確認路徑是否正確: {file_path}")
+        return None
         
     try:
-        # 且您儲存時使用 encoding='utf-8-sig'，這裡也使用相同的編碼讀取
+        # 讀取 CSV 檔案
         df = pd.read_csv(file_path, encoding='utf-8-sig')
 
         if date_column_name not in df.columns:
-            print(f"【錯誤】檔案中找不到指定的日期欄位: '{date_column_name}'。")
-            print(f"檔案中的欄位有: {df.columns.tolist()}")
-            return False, None
+            print(f"【錯誤】檔案中找不到指定的日期欄位: '{date_column_name}'。欄位有: {df.columns.tolist()}")
+            return None
+            
+        # 確保日期欄位是字串，以避免格式不一致的問題
+        df[date_column_name] = df[date_column_name].astype(str)
+
+        # 設定日期格式
+        input_dt_format = '%Y/%m/%d %H:%M:%S'
+        input_date_format = '%Y/%m/%d'
         
-        # 使用向量化操作 (isin) 檢查欄位中是否包含目標日期
-        # 即使欄位類型是 object (字串)，也能正確檢查
+        # 1. 解析輸入的日期時間
+        try:
+            input_dt = datetime.strptime(datetime_to_check, input_dt_format)
+        except ValueError:
+            print(f"【錯誤】輸入日期時間格式不正確。應為 '{input_dt_format}'。您輸入的是: {datetime_to_check}")
+            return None
         
-        date_format = '%Y/%m/%d'
-        current_date = datetime.strptime(date_to_check, date_format)
-        one_day = timedelta(days=1)
-        date_to_check_save = date_to_check
-        check_next_day = True
-        while check_next_day:
+        input_date = input_dt.date()
+        input_time = input_dt.time()
+        
+        # 2. 根據時間判斷「有效查詢日期」
+        # 如果時間在 21:00 (含) 之後，有效日期為今天；否則為前一天。
+        cutoff_time = input_dt.replace(hour=CUTOFF_HOUR, minute=0, second=0, microsecond=0).time()
+        
+        effective_check_date = input_date
+        
+        if input_time < cutoff_time:
+            # 如果在 21:00 之前，視為前一天的交易
+            effective_check_date = input_date - timedelta(days=1)
+        
+        # 3. 迴圈向前尋找最近的 N 個交易日
+        current_check_date = effective_check_date
+        trading_days_found: List[str] = []
+        
+        print(f"輸入日期時間: {datetime_to_check}")
+        print(f"起始查詢日期 (根據 {CUTOFF_HOUR}:00 截止線判斷): {current_check_date.strftime(input_date_format)}")
+        print(f"目標：向前追溯 {n_days} 個交易日...")
+
+        max_lookback_days = n_days * 3  # 設定最大追溯天數，避免無限迴圈
+        days_passed = 0
+
+        while len(trading_days_found) < n_days:
             
-            is_present = df[date_column_name].isin([date_to_check])
-            #print("測試1:date_column_name:", date_to_check)
+            # 安全機制檢查
+            if days_passed > max_lookback_days:
+                print(f"【警告】已向前追溯超過 {max_lookback_days} 天 ({current_check_date.strftime(input_date_format)})，可能資料清單不完整。停止尋找。")
+                break
+
+            date_str = current_check_date.strftime(input_date_format)
             
-            if is_present.any():
-                # 找到匹配的行
-                matched_rows = df[is_present]
-                print(f"✅ 日期 '{date_to_check}' 為交易日！")
-                #print("--- 匹配的資料列 ---")
-                #print(matched_rows)
-                check_next_day = False
+            # 使用 isin 檢查日期是否存在於交易日清單中
+            is_trading_day = df[date_column_name].isin([date_str]).any()
             
-            else:
-                print(f"✅ 日期 '{date_to_check}' 休市日！")
-                tomorrow_date = current_date + one_day
-                tomorrow_date_str = tomorrow_date.strftime(date_format)
-                #print("測試2:date_column_name:", tomorrow_date_str)    
-                date_to_check = tomorrow_date_str
-                current_date = tomorrow_date
-                check_next_day = True
-                
-        if date_to_check_save == current_date.strftime(date_format):
-            print(f"今天日期: {date_to_check_save} 為交易日")
-            return True, date_to_check_save
+            if is_trading_day:
+                # 找到交易日，添加到列表
+                trading_days_found.append(date_str)
+                print(f"✅ 找到第 {len(trading_days_found)} 個交易日: {date_str}")
+            
+            # 無論是否為交易日，都往前推一天，直到找到足夠的數量
+            current_check_date -= timedelta(days=1)
+            days_passed += 1
+
+        # 將列表反轉，使其按時間順序排列 (如果需要的話，通常是從最早到最近)
+        # 如果希望從最近到最舊，則不需要反轉
+        #trading_days_found.reverse() 
+
+        # 4. 判斷今天是否為交易日並回傳結果
+        current_day_is_trading = df[date_column_name].isin([input_date.strftime(input_date_format)]).any()
+        
+        if current_day_is_trading:
+             print(f"\n今天日期 ({input_date.strftime(input_date_format)}) 為交易日。")
         else:
-            print(f"今天日期: {date_to_check_save} 為休市日")
-            print(f"下一個交易日: {current_date.strftime(date_format)}")
-            return False, current_date.strftime(date_format)
+             print(f"\n今天日期 ({input_date.strftime(input_date_format)}) 為休市日。")
         
+        
+        # 確保列表是從最舊到最新排列
+        trading_days_found.reverse()
+
+        if len(trading_days_found) == n_days:
+            # 完整收集到 N 天
+            print(f"✅ 成功收集到 {n_days} 個交易日。")
+            return trading_days_found
+        else:
+            # 未收集到 N 天 (通常是數據不足)
+            print(f"⚠️ 僅找到 {len(trading_days_found)} 個交易日，數量不足 {n_days} 個。")
+            return trading_days_found # 即使不足也回傳找到的結果
+
     except pd.errors.EmptyDataError:
         print("【錯誤】檔案內容為空。")
-        return False, None
+        return None
     except Exception as e:
         print(f"【錯誤】讀取或處理檔案時發生錯誤: {e}")
-        return False, None
+        return None
 
-# 檢查是否為交易日，若是則回傳True，否則回傳"False"，上一個交易日
-def check_pre_date_in_csv(file_path: str, date_to_check: str, date_column_name: str = '日期') -> Union[bool, pd.Series]:
+# 讀取、清理單一 CSV 檔案，並篩選出三大法人買超股數最大的 Top N 股票。
+def _load_and_filter_single_day(
+    file_path: str, 
+    top_n: int,
+    volume_column: str, 
+    code_column: str
+) -> Optional[pd.DataFrame]:
     """
-    檢查指定日期字串是否出現在 CSV 檔案的特定欄位中。
+    讀取、清理單一 CSV 檔案，並篩選出三大法人買超股數最大的 Top N 股票。
+
     Args:
-        file_path (str): holidays_all.csv 檔案的完整路徑。
-        date_to_check (str): 要檢查的日期字串，例如 '2025/10/10'。
-        date_column_name (str): 檔案中包含日期的欄位名稱，預設為 '日期'。
+        file_path (str): 單日三大法人買賣超數據檔案路徑。
+        top_n (int): 要篩選出的前 N 名數量。
+        volume_column (str): 買賣超股數欄位名稱。
+        code_column (str): 證券代號欄位名稱。
+
     Returns:
-        Union[bool, pd.Series]: 如果找到，返回包含匹配行的 Series (布林值)，
-                                如果未找到或檔案不存在，返回 False。返回下個交易日的 Series (布林值)，
+        Optional[pd.DataFrame]: 包含 '代號', '名稱', '股數' 的 Top N DataFrame，若失敗則為 None。
     """
-    #print(f"🔍 正在檢查檔案: {os.path.basename(file_path)}")
-    #print(f"目標日期: {date_to_check}")
-
-    if not os.path.exists(file_path):
-        print("【錯誤】檔案路徑不存在，請確認路徑是否正確。")
-        return False, None
-        
     try:
-        # 且您儲存時使用 encoding='utf-8-sig'，這裡也使用相同的編碼讀取
-        df = pd.read_csv(file_path, encoding='utf-8-sig')
+        # 讀取 CSV 檔案 (多編碼嘗試)
+        try:
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+        except UnicodeDecodeError:
+            df = pd.read_csv(file_path, encoding='big5')
+            
+        required_cols = [volume_column, code_column, '證券名稱']
+        if not all(col in df.columns for col in required_cols):
+            return None
 
-        if date_column_name not in df.columns:
-            print(f"【錯誤】檔案中找不到指定的日期欄位: '{date_column_name}'。")
-            print(f"檔案中的欄位有: {df.columns.tolist()}")
-            return False, None
+        # 數據清理與轉換
+        df[volume_column] = (
+            df[volume_column].astype(str).str.replace(r'[",\s]', '', regex=True)
+        )
+        df[volume_column] = pd.to_numeric(df[volume_column], errors='coerce')
+        df[code_column] = df[code_column].astype(str).str.strip()
         
-        # 使用向量化操作 (isin) 檢查欄位中是否包含目標日期
-        # 即使欄位類型是 object (字串)，也能正確檢查
+        df.dropna(subset=[volume_column], inplace=True)
         
-        date_format = '%Y/%m/%d'
-        current_date = datetime.strptime(date_to_check, date_format)
-        one_day = timedelta(days=1)
-        date_to_check_save = date_to_check
-        check_next_day = True
-        while check_next_day:
-            
-            is_present = df[date_column_name].isin([date_to_check])
-            #print("測試1:date_column_name:", date_to_check)
-            
-            if is_present.any():
-                # 找到匹配的行
-                matched_rows = df[is_present]
-                print(f"✅ 日期 '{date_to_check}' 為交易日！")
-                #print("--- 匹配的資料列 ---")
-                #print(matched_rows)
-                check_next_day = False
-            
-            else:
-                print(f"✅ 日期 '{date_to_check}' 休市日！")
-                tomorrow_date = current_date - one_day
-                tomorrow_date_str = tomorrow_date.strftime(date_format)
-                #print("測試2:date_column_name:", tomorrow_date_str)    
-                date_to_check = tomorrow_date_str
-                current_date = tomorrow_date
-                check_next_day = True
-                
-        if date_to_check_save == current_date.strftime(date_format):
-            print(f"今天日期: {date_to_check_save} 為交易日")
-            return True, date_to_check_save
-        else:
-            print(f"今天日期: {date_to_check_save} 為休市日")
-            print(f"上一個交易日: {current_date.strftime(date_format)}")
-            return False, current_date.strftime(date_format)
+        # 篩選條件：1. 代號為 4 位數字 | 2. 買賣超股數 > 1000 股 (買超)
+        df_filtered = df[
+            (df[code_column].str.match(r'^\d{4}$')) & 
+            (df[volume_column] > 1000) 
+        ].copy()
+
+        # 排序並取出 Top N
+        df_sorted = df_filtered.sort_values(
+            by=volume_column, 
+            ascending=False
+        )
         
-    except pd.errors.EmptyDataError:
-        print("【錯誤】檔案內容為空。")
-        return False, None
+        top_n_data = df_sorted.head(top_n).rename(
+            columns={code_column: '代號', '證券名稱': '名稱', volume_column: '股數'}
+        )
+        
+        return top_n_data[['代號', '名稱', '股數']]
+        
+    except FileNotFoundError:
+        print(f"❌ 錯誤：找不到指定的檔案 -> {os.path.basename(file_path)}")
+        return None
     except Exception as e:
-        print(f"【錯誤】讀取或處理檔案時發生錯誤: {e}")
-        return False, None
+        print(f"❌ 數據處理失敗 ({os.path.basename(file_path)})：{e}")
+        return None
 
+# 分析最新一日三大法人買超 Top N 股票在過去 N 天的回溯趨勢
+def analyze_top_stocks_trend(
+    file_paths: List[str],
+    top_n: int = 30, 
+    n_days_lookback: int = 5, 
+    volume_column: str = "三大法人買賣超股數", 
+    code_column: str = "證券代號"
+) -> Optional[str]:
+    """
+    分析最新一日三大法人買超 Top N 股票在過去 N 天的回溯趨勢。
+    輸出結果不包含名次，並依 代號, 證券名稱, 回溯趨勢, 買超張數 排序。
+    回溯趨勢的日期標籤和標記皆以「最舊日到最新日」的順序排列。
 
+    Args:
+        file_paths (List[str]): 依序為 [最新日, 前一日, ..., 前第 N 日] 的檔案路徑列表。
+        top_n (int): 基準日要篩選出的前 N 名數量 (預設 30)。
+        n_days_lookback (int): 要回溯的交易日天數 (預設 5)。
+        volume_column (str): 買賣超股數欄位名稱。
+        code_column (str): 證券代號欄位名稱。
+
+    Returns:
+        Optional[str]: 格式化輸出趨勢結果，或錯誤訊息。
+    """
+    
+    # 確保有足夠的檔案進行基準日 + 回溯日分析
+    required_files = n_days_lookback + 1
+    if len(file_paths) < required_files:
+        print(f"⚠️ 錯誤：至少需要 {required_files} 個檔案 (基準日 + {n_days_lookback} 個回溯日)。目前只有 {len(file_paths)} 個。")
+        return None
+
+    # --- 1. 處理所有交易日數據 ---
+    all_day_data: Dict[int, Set[str]] = {}
+    day_labels: List[str] = []
+    df_base_day: Optional[pd.DataFrame] = None 
+
+    print(f"🔍 開始處理 {required_files} 天數據...")
+    
+    for i, path in enumerate(file_paths[:required_files]):
+        df_day = _load_and_filter_single_day(path, top_n, volume_column, code_column)
+        
+        # 提取檔案名稱中的日期作為標籤
+        try:
+            # 假設檔案名稱包含日期，例如 "20251110_institutional.csv"
+            date_label = os.path.basename(path).split('_')[0][:8]
+        except:
+            date_label = f"Day-{i}"
+            
+        if df_day is None or df_day.empty:
+            print(f"⚠️ {date_label} 數據載入或篩選失敗，將略過此日。")
+            all_day_data[i] = set()
+        else:
+            # 將該日期的 Top N 股票代號存儲為集合 (Set)
+            all_day_data[i] = set(df_day['代號'].tolist())
+            print(f"✅ {date_label} 成功篩選出 {len(all_day_data[i])} 檔股票。")
+
+        day_labels.append(date_label)
+        
+        # 基準日 (最新日) 的數據需要單獨保存
+        if i == 0:
+            df_base_day = df_day
+    
+    if df_base_day is None or df_base_day.empty:
+        print("❌ 基準日 (最新日) 數據無效或為空，無法進行趨勢分析。")
+        return None
+        
+    # --- 2. 獲取基準日 Top N 股票代號 (此為分析的主體) ---
+    base_stocks = df_base_day[['代號', '名稱', '股數']].head(top_n).copy()
+    
+    # --- 3. 執行回溯趨勢分析 ---
+    
+    # 建立列表用於存放每天的回溯標記 (Series) 和日期標籤
+    # 初始順序為 i=1 到 n_days_lookback (最新回溯日到最舊回溯日)
+    trend_header_parts: List[str] = []
+    trend_marker_series: List[pd.Series] = []
+    
+    for i in range(1, n_days_lookback + 1):
+        # 回溯日期的標籤
+        day_tag = day_labels[i].replace("/", "")[-4:] # 取日期後四碼 (如 1110)
+        trend_header_parts.append(day_tag)
+        
+        # 取得該回溯日期的 Top N 股票代號集合
+        past_top_n_codes = all_day_data.get(i, set())
+        
+        # 對基準日的每一檔股票進行檢查
+        presence_markers = []
+        for code in base_stocks['代號']:
+            # 檢查代號是否出現在過去 Top N 列表中
+            if code in past_top_n_codes:
+                presence_markers.append("🔴") # 存在 (多加一個空格以確保間隔一致)
+            else:
+                presence_markers.append("⚪️") # 不存在
+        
+        # 將標記 Series 存入列表
+        trend_marker_series.append(pd.Series(presence_markers, index=base_stocks.index))
+        
+    # *** 關鍵修改：將列表反轉，使順序變為「最舊日到最新日」 ***
+    trend_header_parts.reverse()
+    trend_marker_series.reverse()
+    
+    # 建立最終的回溯趨勢標頭 (最舊日到最新日)
+    trend_header = " ".join(trend_header_parts)
+    
+    # 串接所有的趨勢標記 Series (最舊日到最新日)
+    if trend_marker_series:
+        # 使用 copy() 確保獨立性
+        base_stocks['趨勢'] = trend_marker_series[0].copy() 
+        for series in trend_marker_series[1:]:
+            base_stocks['趨勢'] += series
+    else:
+        base_stocks['趨勢'] = pd.Series("", index=base_stocks.index) # 避免空列表錯誤
+
+    # 移除趨勢欄位尾部多餘的空格
+    base_stocks['趨勢'] = base_stocks['趨勢'].str.strip()
+    
+    # --- 4. 格式化輸出結果 ---
+    
+    # 將股數轉換為張數並格式化
+    volume_col_display_name = '買超張數'
+    base_stocks[volume_col_display_name] = base_stocks['股數'].apply(lambda x: f"{int(x / 1000):,}")
+    
+    # 總寬度調整 (配合新順序與欄位)
+    TOTAL_WIDTH = 28
+    
+    # 建立表格標頭 - 移除名次，調整順序: 代號 | 證券名稱 | 回溯趨勢 | 買超張數
+    
+    output_lines = [
+        f"\n*******************************"
+        f"\n   📈 三大法人買超Top{top_n}\n基準日:{day_labels[0]}-過去{n_days_lookback}日趨勢"
+        f"\n*******************************",
+    #    f"{'代號'.center(6)} | {'證券名稱'.center(6)} | 回溯趨勢 > > > > {day_labels[0][-4:]}  | {'買超張數'.center(8)}", 
+    #    "-" * TOTAL_WIDTH
+    ]
+    
+    # 建立表格內容
+    for index, row in base_stocks.iterrows():
+        #code_str = str(row['代號']).center(6)
+        name_str = row['名稱'].ljust(4, '　') # 中文佔用寬度處理
+        volume_str = row[volume_col_display_name].rjust(6) # 右對齊數字
+        trend_str = row['趨勢'] 
+
+        show_width_in_stock_name = 4
+        if len(name_str.replace(' ', '')) < show_width_in_stock_name :
+            padding_width = show_width_in_stock_name - len(name_str.replace(' ', ''))
+            name_str = name_str.replace(' ', '') + '  ' * padding_width
+        else:
+            name_str = name_str.replace(' ', '')
+
+        # 輸出順序: 代號 | 證券名稱 | 回溯趨勢 | 買超張數
+        #output_lines.append(f"{code_str} | {name_str} | {trend_str} | {volume_str}")
+        output_lines.append(f"{name_str}{trend_str}({volume_str}張)")
+        
+        #print(f"✅ {name_str.replace('  ', '')}")
+        #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
+    output_lines.append("=" * TOTAL_WIDTH)
+    output_lines.append(f"🔴: 該日出現在 Top {top_n} 名單中 \n⚪️: 該日未出現在 Top {top_n} 名單中")
+    
+    return "\n".join(output_lines)
 
 # 設定您想要抓取的目標日期 (只需修改此處即可抓取所有報告的資料)
 def main_run():
@@ -1373,39 +1533,38 @@ def main_run():
 
     #--------------
     TARGET_DATE = date.today().strftime("%Y%m%d") 
-    Yesterday_day = (date.today() - timedelta(days=1)).strftime("%Y%m%d")
-    Now_time_hour = datetime.now().strftime("%H")  #取得目前系統時間的「幾點鐘」
     Now_day_time = datetime.now().strftime("%Y-%m-%d %H:%M")  #取得目前系統時間的日期及時間「例如 2025-11-12 11:12」
     Now_time_year = datetime.now().strftime("%Y")  #取得目前系統時間的「年」
     Trading_day_file_path = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / f"trading_day_2021-{Now_time_year}.csv"
     DATE_TO_CHECK = date.today().strftime("%Y/%m/%d")  
+    DATE_TO_CHECK_NOW = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     
     # 處理要抓取哪一天的資料邏輯
-    result_found_next = check_next_date_in_csv(Trading_day_file_path, DATE_TO_CHECK)
-    if result_found_next[0]:  # 如果今天是交易日
+    result_found_next = get_previous_n_trading_days(Trading_day_file_path, DATE_TO_CHECK_NOW)
+    
+    if DATE_TO_CHECK == result_found_next[-1]:  # 如果今天是交易日
         TARGET_DATE = DATE_TO_CHECK  # 抓取今天的資料  
         print(f"\n[時間檢查]: 今天日期 ({DATE_TO_CHECK}) 為交易日。")    
-   
-        if Now_time_hour > '21':  # 假設在晚上9點後，抓取當天的資料
-            print(f"\n[時間檢查]: 現在時間為 {Now_day_time}，抓取 ({TARGET_DATE})當天資料。")
-            print("\n" + "="*50)
-            print("--- 程式開始執行：TWSE 報告資料抓取 ---")
-            print("="*50 + "\n")
-        else:
-            result_found_pre = check_pre_date_in_csv(Trading_day_file_path, DATE_TO_CHECK)
-            TARGET_DATE = result_found_pre[1]  # 抓取上一個交易日的資料
-            print(f"\n[時間檢查]: 現在時間為 {Now_day_time}，當天資料尚未更新，將提供前一個交易日 ({TARGET_DATE}) 的資料。")
-   
-    else:  # 如果今天不是交易日
-        result_found_pre = check_pre_date_in_csv(Trading_day_file_path, DATE_TO_CHECK)
-        TARGET_DATE = result_found_pre[1]  # 抓取上一個交易日的資料
-        print(f"\n[時間檢查]: 今天日期 ({DATE_TO_CHECK}) 為休市日，將提供前一個交易日 ({TARGET_DATE}) 的資料。")
-        
+        # 抓取當天的資料
+        print(f"\n[時間檢查]: 現在時間為 {DATE_TO_CHECK_NOW}，抓取 ({TARGET_DATE})當天資料。")
+        print("\n" + "="*50)
+        print("--- 程式開始執行：TWSE 報告資料抓取 ---")
+        print("="*50 + "\n")
+    else:
+        TARGET_DATE = result_found_next[-1]  # 抓取前一天的資料  
+        print(f"\n[時間檢查]: 現在時間為 {DATE_TO_CHECK_NOW}，當天資料尚未更新，將提供前一個交易日 ({TARGET_DATE}) 的資料。")
+        print("\n" + "="*50)
+        print("--- 程式開始執行：TWSE 報告資料抓取 ---")
+        print("="*50 + "\n")
+            
     # 設置一個列表來儲存結果(抓取的網路資料)，便於最終預覽
     results = []
 
     # 轉換TARGET_DATE為YYYYMMDD格式
+    print(f"目前處理日期為: {TARGET_DATE}\n")
     TARGET_DATE = TARGET_DATE.replace("/", "")
+    print(f"目前處理後日期為: {TARGET_DATE}\n")
+    
     # 1. STOCK_DAY (個股日成交資訊)
     # 改以單獨的程式抓取資料
     #results.append(("STOCK_DAY", fetch_twse_stock_day(TARGET_DATE, TARGET_STOCK)))
@@ -1464,11 +1623,8 @@ def main_run():
 
     time_module.sleep(5) 
 
-    # 增加日誌儲存：記錄本次嘗試抓取的日期
-    log_summary_results(results, TARGET_DATE)
-
-    print("\n所有 CSV 檔案已儲存至程式執行目錄下。")
-    print("--- 程式執行結束 ---")
+    #print("\n所有 CSV 檔案已儲存至程式執行目錄下。")
+    #print("--- 程式執行結束 ---")
     
     # 取得庫存股票清單及近5日收盤價
     # ==========================================================
@@ -1629,8 +1785,47 @@ def main_run():
         else:
             total_price_percent = f"🟢 {abs(total_price_percent)}%"
             
-     # 呼叫函式
-        top_20_positive_df = get_top_20_institutional_trades_filtered(file_path)
+    # ==========================================================
+    # --- # 取得三大法人買超Top30 ---
+    # ==========================================================
+        HOLIDAYS_FILE = r'D:\Python_repo\python\Jason_Stock_Analyzer\datas\processed\get_holidays\trading_day_2021-2025.csv'
+        Now_day_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S") 
+        result = get_previous_n_trading_days(
+            file_path=HOLIDAYS_FILE, 
+            datetime_to_check=datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        )
+        
+        # 模擬檔案路徑
+        T86_folder_base = pathlib.Path(__file__).resolve().parent / "datas" / "raw" / "11_T86"
+        mock_file_paths = []
+        print(result)
+        result.reverse()
+        print(result)
+        # sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
+        if result:
+            for day_str in result:
+                day_str = day_str.replace('/', '')
+                file_path = T86_folder_base / f"{day_str}_T86_InstitutionalTrades.csv"
+                # 將 Path 轉回 str 傳入
+                mock_file_paths.append(str(file_path)) 
+            
+            if len(mock_file_paths) > 0:
+                actual_lookback_days = len(mock_file_paths) - 1
+                analysis_result = analyze_top_stocks_trend(
+                    file_paths=mock_file_paths,
+                    top_n = 30, # 定義要抓取的前30筆
+                    n_days_lookback=actual_lookback_days, # 依據實際找到的天數設定回溯天數
+                )
+
+                # 3. 輸出結果
+                if analysis_result:
+                    print(analysis_result)
+            else:
+                print("❌ 由於未能取得足夠的交易日路徑，無法進行分析。")
+                
+                
+        # -------------------
+        #top_20_positive_df = get_top_20_institutional_trades_filtered(file_path)
         
         #print(top_20_positive_df)
     
@@ -1647,7 +1842,7 @@ def main_run():
     # 針對關注的股票，取得近5日收盤價
     #Send_focused_message_all = ""
     Send_message_ALL += f"*****************************\n"
-    Send_message_ALL += f"💡💡 {TARGET_DATE} 關注股資訊💡💡\n"
+    Send_message_ALL += f"💡 {TARGET_DATE} 關注股資訊💡\n"
     Send_message_ALL += f"*****************************\n"
     for focused_stock_name in focused_stock_names:
     #    print(f"\n--- {focused_stock_names} 最近 5 個交易日的收盤價 ---")
@@ -1740,10 +1935,8 @@ def main_run():
         
     # 將三大法人買超資訊加入
     
-    Send_message_ALL += f"\n\n*******************************\n"
-    Send_message_ALL += f"🚀{TARGET_DATE}三大法人買超前20名🚀\n"
-    Send_message_ALL += f"*******************************\n"
-    Send_message_ALL += top_20_positive_df    
+    Send_message_ALL += f"\n\n"
+    Send_message_ALL += analysis_result    
     print(Send_message_ALL)
     
     # ---- line notify 發送訊息 ----1
@@ -1797,31 +1990,30 @@ def main_run():
 
     # 發送全部資訊(庫存股通知、關注股通知、三大法人買超前20)
     analysis_report = Send_message_ALL
-    #send_stock_notification(LINE_USER_ID, analysis_report)
+    send_stock_notification(LINE_USER_ID, analysis_report)
 # ===========================================================
 
 # 1. 初始化運行狀態
 running = True
 
 # 先運行 schedule.clear() 將排程清除，避免習慣使用 jupyter notebook 整合開發環境的讀者，
-# 有殘存的排程，造成運行結果不如預期
 schedule.clear()
 
 # 指定每 15 秒運行一次 say_hi 函數
 # schedule.every(200).seconds.do(main_run)
-# print("✅ 已設定定時任務：每1秒執行 main_run。")
+
 #每小時運行一次
 # schedule.every(1).hour.do(main_run)
 # print("✅ 已設定定時任務：每小時執行 main_run。")
 
-# 每天 15:30 運行一次 get_price 函數
+# 每天 21:00 執行一次
 schedule.every().day.at('21:00').do(main_run)
 print("✅ 已設定定時任務：21:00 執行 main_run。")
 
 # 3. 設定鍵盤熱鍵 (非阻塞式監聽)
 keyboard.add_hotkey('1', main_run)
 keyboard.add_hotkey('q', stop_program)
-print("✅ 已設定鍵盤熱鍵：[1] 執行main_run, [Q] 停止程式。")
+print("✅ 已設定鍵盤熱鍵：[1] 直接執行main_run, [Q] 停止程式。")
 
 print("\n--- 程式開始運行 ---")
 print("主程式和排程監聽中...")
