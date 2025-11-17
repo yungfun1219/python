@@ -1667,13 +1667,17 @@ def analyze_top_stocks_trend(
     volume_col_display_name = '買超張數'
     base_stocks[volume_col_display_name] = base_stocks['股數'].apply(lambda x: f"{int(x / 1000):,}")
     
+    # 總寬度調整 (配合新順序與欄位)
+    TOTAL_WIDTH = 28
+    
     # 建立表格標頭 - 移除名次，調整順序: 代號 | 證券名稱 | 回溯趨勢 | 買超張數
     
     output_lines = [
-        f"\n****************************"
+        f"\n*******************************\n"
         f"\n   📈 三大法人買超Top{top_n}\n基準日:{day_labels[0]}-過去{n_days_lookback}日趨勢"
-        f"\n****************************",
+        f"\n\n*******************************\n",
     #    f"{'代號'.center(6)} | {'證券名稱'.center(6)} | 回溯趨勢 > > > > {day_labels[0][-4:]}  | {'買超張數'.center(8)}", 
+    #    "-" * TOTAL_WIDTH
     ]
     
     # 建立表格內容
@@ -1696,7 +1700,7 @@ def analyze_top_stocks_trend(
         
         #print(f"✅ {name_str.replace('  ', '')}")
         #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
-    output_lines.append("*" * 28)
+    output_lines.append("=" * TOTAL_WIDTH)
     output_lines.append(f"🔴: 該日出現在 Top {top_n} 名單中 \n⚪️: 該日未出現在 Top {top_n} 名單中")
     
     return "\n".join(output_lines)
