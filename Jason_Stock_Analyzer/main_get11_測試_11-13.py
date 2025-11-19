@@ -1742,12 +1742,16 @@ def main_run():
 
                 except ValueError as e:
                     print(f"❌ 錯誤：數據中包含無法轉換為數值的資料，無法換算成「張」。")
+                    net_volume_data = "0"
                     # print(f"  詳細錯誤：{e}") # 方便除錯
                   
                      
             else:
                 print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
                 net_volume_data = "0"
+            
+            #print(net_volume_data)
+            #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
             net_volume_data = net_volume_data.tolist()[0][:-4] + "張"
             
             get_price = lookup_stock_price(
