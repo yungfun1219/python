@@ -14,7 +14,7 @@ import requests
 import schedule
 import keyboard  # 用於監聽鍵盤事件
 from dotenv import load_dotenv # ➊ 匯入函式庫
-from typing import Optional, Tuple, List, Union
+from typing import Optional, Tuple, List, Union, Dict, Any
 import time as time_module # 用於 sleep() 或 time()
 
 #本地模組
@@ -27,8 +27,6 @@ requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.
 # ==========================================================
 # 參數設定  --- 配置 (Configuration) ---
 # ==========================================================
-SUMMARY_LOG_FILENAME_PREFIX = "fetch_summary" # 定義摘要日誌檔案前綴
-
 # 設定鍵盤監控 -- 1. 初始化運行狀態 (確保是全局變數)
 running = True
 
@@ -37,6 +35,128 @@ def stop_program():
     print("\n\n👋 偵測到 'Q' 鍵，程式即將安全退出...")
     global running
     running = False
+  
+# 獲取單一交易日 (day_roll1) 特定股票 (target_stock_name) 的詳細資訊，包括收盤價、漲跌幅、三大法人買賣超、以及個股指標。  
+def get_day_stock_details(
+    day_roll1: str,
+    target_stock_name: str,
+    base_dir: pathlib.Path,
+    get_price_before: Optional[str],
+    csv_name_column: str,
+    csv_price_column: str
+) -> Dict[str, Any]:
+    """
+    獲取單一交易日 (day_roll1) 特定股票 (target_stock_name) 的詳細資訊，
+    包括收盤價、漲跌幅、三大法人買賣超、以及個股指標。
+    
+    Args:
+        day_roll1: 當前交易日 (YYYYMMDD 格式)。
+        target_stock_name: 股票名稱。
+        base_dir: 專案基礎路徑。
+        get_price_before: 前一交易日的收盤價 (字串或 None)。
+        csv_name_column: CSV 中用於比對的股票名稱欄位名稱。
+        csv_price_column: CSV 中收盤價的欄位名稱。
+
+    Returns:
+        包含當日所有處理結果的字典。
+    """
+    
+    # ------------------ 1. 定義檔案路徑 ------------------
+    
+    # 價格與指標 CSV 路徑 (3_BWIBBU_d)
+    csv_price_path = base_dir / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll1}_BWIBBU_d_IndexReturn.csv"
+    # 三大法人買賣超 CSV 路徑 (11_T86)
+    csv_volume_path = base_dir / "datas" / "raw" / "11_T86" / f"{day_roll1}_T86_InstitutionalTrades.csv"
+
+    # 初始化結果字典
+    result = {
+        'day_mmdd': f"{day_roll1[4:6]}/{day_roll1[-2:]}",
+        'get_price': None,
+        'price_percent': 0.0,
+        'price_percent_formatted': "0.0%",
+        'net_volume_data': "0張",
+        'pa_ratio': "-",
+        'pe_ratio': "-",
+        'pb_ratio': "-"
+    }
+
+    # ------------------ 2. 獲取收盤價 ------------------
+
+    get_price = lookup_stock_price(
+        file_path=csv_price_path,
+        stock_name=target_stock_name,
+        name_col=csv_name_column,
+        price_col=csv_price_column
+    )
+    result['get_price'] = get_price
+
+    # ------------------ 3. 計算價格漲跌幅 (加入 None 檢查) ------------------
+    
+    if get_price is not None and get_price_before is not None:
+        try:
+            current_price = float(get_price)
+            previous_price = float(get_price_before)
+            
+            if previous_price != 0:
+                price_percent = (current_price - previous_price) / previous_price * 100
+                result['price_percent'] = round(price_percent, 1)
+                
+                # 格式化輸出
+                if price_percent > 0:
+                    result['price_percent_formatted'] = f"🔴{abs(result['price_percent'])}%"
+                else:
+                    result['price_percent_formatted'] = f"🟢{abs(result['price_percent'])}%"
+            else:
+                print(f"⚠️ 警告: {result['day_mmdd']} 前一日價格為 0，無法計算漲跌幅。")
+        except (ValueError, TypeError) as e:
+            # 捕獲 float() 轉換失敗 (如非數字字串) 或 NoneType 錯誤
+            print(f"❌ 錯誤: {result['day_mmdd']} 價格轉換或計算失敗 ({e})，跳過漲跌幅。")
+    else:
+        print(f"❌ 錯誤: {result['day_mmdd']} 價格資料缺失 (None)，跳過漲跌幅計算。")
+
+    # ------------------ 4. 獲取三大法人買賣超 ------------------
+    
+    net_volume_data_series = get_stock_net_volume(csv_volume_path, target_stock_name)
+    
+    if net_volume_data_series is not None and not net_volume_data_series.empty:
+        try:
+            # 轉換為數值 (float)，並除以 1000 換算成「張」
+            net_volume_in_lots = net_volume_data_series.astype(float) / 1000
+            
+            # 對結果進行四捨五入或取整數
+            rounded_lots = net_volume_in_lots.round(0).astype(int) 
+            
+            # 將 Series 轉換為純數據字串 (例如："1234")
+            output_string = rounded_lots.to_string(index=False, header=False).strip()
+            
+            # 格式化並儲存最終字串
+            result['net_volume_data'] = output_string + "張"
+
+        except Exception:
+            # 捕獲所有轉換錯誤
+            print(f"❌ 錯誤: {result['day_mmdd']} 買賣超資料轉換失敗，設定為 '資料錯誤'。")
+            result['net_volume_data'] = "資料錯誤"
+            
+    else:
+        # 找不到資料時，設定預設字串
+        print(f"找不到 {target_stock_name} 在 {result['day_mmdd']} 的買賣超股數資料。")
+        result['net_volume_data'] = "0張"
+
+    # ------------------ 5. 獲取個股指標 ------------------
+    
+    stock_indicators_df = get_stock_indicators(csv_price_path, target_stock_name)
+    
+    if stock_indicators_df is not None and not stock_indicators_df.empty:
+        try:
+            # 確保欄位存在，並提取數據
+            result['pa_ratio'] = stock_indicators_df.iloc[0]['殖利率(%)']
+            result['pe_ratio'] = stock_indicators_df.iloc[0]['本益比']
+            result['pb_ratio'] = stock_indicators_df.iloc[0]['股價淨值比']
+        except KeyError:
+            print(f"⚠️ 警告: {result['day_mmdd']} 個股指標 CSV 欄位名稱不正確或數據缺失。")
+            # 保持預設的 "-"
+
+    return result    
     
 # 讀取關注的股票
 def get_stock_names_from_excel(file_path: str, sheet_name: str, column_name: str) -> Optional[pd.Series]:
@@ -279,6 +399,7 @@ def get_top_20_institutional_trades_filtered(
     )
     print("=" * 40)
     
+    top_20_trades_stock_list = []
     top_20_trades = ""
     index_no = 1
     target_length = 6
@@ -295,8 +416,10 @@ def get_top_20_institutional_trades_filtered(
         
         top_20_trades += f"{index_no_str}." + f"{new_current_volume_column}" + f" ({rol[volume_col_display_name]}張)⚪️🔴\n"
         index_no += 1
-        
-    return top_20_trades
+        top_20_trades_stock_list.append(current_volume_column)
+
+    return top_20_trades, top_20_trades_stock_list
+
 
 # 讀取 CSV 檔案，篩選出指定證券名稱的資料，並只返回「買賣超股數」數據。
 def get_stock_net_volume(file_path, target_name, target_column="三大法人買賣超股數"):
@@ -540,51 +663,6 @@ def lookup_stock_price(file_path: pathlib.Path, stock_name: str, name_col: str, 
         print(f"  > 價格查詢失敗: {e}")
         return None
     
-# def lookup_stock_price(file_path: str, stock_name: str, name_col: str, price_col: str):
-#     """
-#     從指定的 CSV 檔案中查詢特定證券的收盤價。
-#     """
-#     file = pathlib.Path(file_path)
-    
-#     #print(f"✅ 正在嘗試讀取檔案: {file.name}")
-#     #print(f"🔍 查詢目標: {stock_name}")
-    
-#     if not file.exists():
-#         print(f"❌ 錯誤：找不到檔案在路徑：{file_path}")
-#         return
-
-#     try:
-#         # 讀取 CSV 檔案，使用 Big5 編碼 (臺灣金融數據常用)，並清理欄位名稱的空白
-#         df = pd.read_csv(file_path, encoding='utf-8', skipinitialspace=True)
-#         df.columns = df.columns.str.strip()
-        
-#         # 檢查關鍵欄位是否存在
-#         if name_col not in df.columns or price_col not in df.columns:
-#             print(f"❌ 錯誤：CSV 檔案中缺少必要的欄位 ('{name_col}' 或 '{price_col}')。")
-#             return
-
-#         # 確保比對欄位是字串且清理空白
-#         df[name_col] = df[name_col].astype(str).str.strip()
-
-#         # 執行篩選
-#         result = df[df[name_col] == stock_name]
-
-#         if result.empty:
-#             print(f"\n⚠️ 警告：在檔案中找不到 '{stock_name}' 的收盤價資料。")
-#             return
-
-#         # 取得收盤價，只取第一個結果（因為可能有多行相同名稱，但通常只取第一筆）
-#         price = result.iloc[0][price_col]
-        
-#         # print("\n" + "="*50)
-#         # print(f"🎉 查詢結果 ({file.name})")
-#         # print(f"證券名稱: {stock_name}")
-#         # print(f"收盤價 ({price_col}): **{price}**")
-#         # print("="*50)
-#         return price    
-#     except Exception as e:
-#         print(f"❌ 讀取或處理檔案時發生錯誤：{e}")
-
 # 從交易日檔案中，找出今天往前數 N 個交易日，並根據當前時間 (15:00) 判斷是否納入今天。
 def find_last_n_trading_days_with_time_check(file_path, n=6):
     """
@@ -1687,14 +1765,27 @@ def main_run():
     N_DAYS = 6 # 往前找的交易日數量
 
     recent_trading_days_df = find_last_n_trading_days_with_time_check(Trading_day_file_path, n=N_DAYS)
-    #recent_trading_days_df.sort_values(by="日期", ascending=False, inplace=True)
+    
+
+    # 模擬讀取三大法人超的前20家
+    T86_folder_base = pathlib.Path(__file__).resolve().parent / "datas" / "raw" / "11_T86"
+    file_path = T86_folder_base / "20251119_T86_InstitutionalTrades.csv"
+    top_20_positive_df, top_20_stock_list_name = get_top_20_institutional_trades_filtered(file_path)
+    
+    print(type(top_20_stock_list_name))
+    for rol in top_20_stock_list_name:
+        print(rol)
+    
+    #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
+    
+    ##2025-11-20
+        
     Send_message_ALL = ""
     for TARGET_STOCK_NAME in TARGET_STOCK_NAMES:
-    #    print(f"\n--- {TARGET_STOCK_NAME} 最近 5 個交易日的收盤價 ---")
         Send_message = ""
         #-- 取得五個交易日的收盤價並合併 ---
-        CSV_NAME_COLUMN = "證券名稱" # 假設 CSV 中用於名稱比對的欄位
-        CSV_PRICE_COLUMN = "收盤價"  # 假設 CSV 中收盤價的欄位
+        CSV_NAME_COLUMN = "證券名稱" 
+        CSV_PRICE_COLUMN = "收盤價" 
 
         day_roll = []
         for row in recent_trading_days_df["日期"]:
@@ -1706,142 +1797,82 @@ def main_run():
         if recent_trading_days_df is not None:
             print(f"\n--{TARGET_STOCK_NAME}最近5個交易日--")
 
-        CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll[0:1][0]}_BWIBBU_d_IndexReturn.csv"
+        # 獲取第 5 個交易日 (day_roll[0]) 的收盤價作為比較基準
+        CSV_PATH_BEFORE = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll[0]}_BWIBBU_d_IndexReturn.csv"
         get_price_before = lookup_stock_price(
-                file_path=CSV_PATH,
-                stock_name=TARGET_STOCK_NAME,
-                name_col=CSV_NAME_COLUMN,
-                price_col=CSV_PRICE_COLUMN
-            )
+            file_path=CSV_PATH_BEFORE,
+            stock_name=TARGET_STOCK_NAME,
+            name_col=CSV_NAME_COLUMN,
+            price_col=CSV_PRICE_COLUMN
+        )
         print("前5交易日收盤價:", get_price_before)
         
         total_price_percent = 0
+        final_indicators = {} # 用於儲存最後一天的個股指標
+
+        # 迴圈處理最近 4 個交易日的數據 (day_roll[1] 到 day_roll[4])
         for day_roll1 in day_roll[1:]:
-            CSV_PATH = BASE_DIR / "datas" / "raw" / "3_BWIBBU_d" / f"{day_roll1}_BWIBBU_d_IndexReturn.csv"
-
-            # --- 讀取買賣超資料並發送通知 ---
-
-            file_path = BASE_DIR / "datas" / "raw" / "11_T86" / f"{day_roll1}_T86_InstitutionalTrades.csv"
-            stock_name = TARGET_STOCK_NAME # 目標證券名稱
-
-            # 呼叫函式
-            net_volume_data = get_stock_net_volume(file_path, stock_name)
-
-            if net_volume_data is not None and not net_volume_data.empty:
-                try:
-                    # 1. 轉換為數值 (float)，並除以 1000 換算成「張」
-                    net_volume_in_lots = net_volume_data.astype(float) / 1000
-                    
-                    # 2. (可選) 對結果進行四捨五入或取整數
-                    # 這裡使用 round() 保持一定精確度，您可以根據需求改為 .astype(int)
-                    rounded_lots = net_volume_in_lots.round(0).astype(int) 
-                    
-                    # 3. 將 Series 轉換為字串 (不含索引，且不含標題)
-                    # 使用 to_string(index=False, header=False) 取得純數據字串
-                    output_string = rounded_lots.to_string(index=False, header=False).strip()
-
-                except ValueError as e:
-                    print(f"❌ 錯誤：數據中包含無法轉換為數值的資料，無法換算成「張」。")
-                    net_volume_data = "0"
-                    # print(f"  詳細錯誤：{e}") # 方便除錯
-                  
-                     
-            else:
-                print(f"找不到 {stock_name} 的買賣超股數資料或資料為空。")
-                net_volume_data = "0"
             
-            #print(net_volume_data)
-            #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
-            net_volume_data = net_volume_data.tolist()[0][:-4] + "張"
-            
-            get_price = lookup_stock_price(
-                file_path=CSV_PATH,
-                stock_name=TARGET_STOCK_NAME,
-                name_col=CSV_NAME_COLUMN,
-                price_col=CSV_PRICE_COLUMN
+            # 呼叫新的函式來獲取當日所有數據
+            day_data = get_day_stock_details(
+                day_roll1=day_roll1,
+                target_stock_name=TARGET_STOCK_NAME,
+                base_dir=BASE_DIR,
+                get_price_before=get_price_before,
+                csv_name_column=CSV_NAME_COLUMN,
+                csv_price_column=CSV_PRICE_COLUMN
             )
-            day_mmdd = f"{day_roll1[4:6]}/{day_roll1[-2:]}"
-            price_percent = (float(get_price) - float(get_price_before)) / float(get_price_before) * 100
-            price_percent = round(float(price_percent), 1)
             
-            total_price_percent += int(price_percent)
+            # 彙總績效
+            total_price_percent += day_data['price_percent'] # price_percent 是數字
+            # 建立單日訊息
+            Send_message += (
+                f"{day_data['day_mmdd']}:"
+                f"{day_data['get_price']}"
+                f"{day_data['price_percent_formatted']}"
+                f"({day_data['net_volume_data']})\n"
+            )
             
-            if price_percent > 0:
-                price_percent = f"🔴{abs(price_percent)}"
-            else:
-                price_percent = f"🟢{abs(price_percent)}"
+            # 更新前一日價格，用於下一輪迭代
+            get_price_before = day_data['get_price']
             
-            Send_message += f"{day_mmdd}:{get_price}{price_percent}%({net_volume_data})\n"
-            get_price_before = get_price
-            
-            # 呼叫函式
-            stock_indicators_df = get_stock_indicators(CSV_PATH, stock_name)
+            # 儲存最後一天的指標，用於報表尾部 (假設您只需要最後一天的指標)
+            final_indicators = {
+                'pa_ratio': day_data['pa_ratio'],
+                'pe_ratio': day_data['pe_ratio'],
+                'pb_ratio': day_data['pb_ratio'],
+            }
 
-            pa_ratio = stock_indicators_df.iloc[0]['殖利率(%)']
-            pe_ratio = stock_indicators_df.iloc[0]['本益比']
-            pb_ratio = stock_indicators_df.iloc[0]['股價淨值比']
-            
-           # message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--" + f"\n         本益比  : {pe_ratio}%" + f"\n     股價淨值比: {pb_ratio}" + f"\n         殖利率  : {pa_ratio}\n\n"
-            message_add = f"\n--🎯【{stock_name}】個股資訊 🎯--\n  本益比  : {pe_ratio}%\n股價淨值比: {pb_ratio}\n  殖利率  : {pa_ratio}\n\n"
-            
+        # ------------------ 報表尾部處理 (使用儲存的 final_indicators) ------------------
+
+        # 處理總體漲跌幅
+        total_price_percent = round(total_price_percent, 1) # 確保總計也是四捨五入
         if total_price_percent > 0:
-            total_price_percent = f"🔴 {abs(total_price_percent)}%"
+            total_price_percent_formatted = f"🔴 {abs(total_price_percent)}%"
         else:
-            total_price_percent = f"🟢 {abs(total_price_percent)}%"
-            
-    # ==========================================================
-    # --- # 取得三大法人買超Top30 ---
-    # ==========================================================
-        HOLIDAYS_FILE = r'D:\Python_repo\python\Jason_Stock_Analyzer\datas\processed\get_holidays\trading_day_2021-2025.csv'
-        Now_day_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S") 
-        result = get_previous_n_trading_days(
-            file_path=HOLIDAYS_FILE, 
-            datetime_to_check=datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            total_price_percent_formatted = f"🟢 {abs(total_price_percent)}%"
+        
+        # 建立個股資訊訊息
+        message_add = (
+            f"\n--🎯【{TARGET_STOCK_NAME}】個股資訊 🎯--\n"
+            f"  本益比  : {final_indicators['pe_ratio']}\n"
+            f"股價淨值比: {final_indicators['pb_ratio']}\n"
+            f"  殖利率  : {final_indicators['pa_ratio']}%\n\n"
         )
-        
-        # 模擬檔案路徑
-        T86_folder_base = pathlib.Path(__file__).resolve().parent / "datas" / "raw" / "11_T86"
-        mock_file_paths = []
-        print(result)
-        result.reverse()
-        print(result)
-        # sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
-        if result:
-            for day_str in result:
-                day_str = day_str.replace('/', '')
-                file_path = T86_folder_base / f"{day_str}_T86_InstitutionalTrades.csv"
-                # 將 Path 轉回 str 傳入
-                mock_file_paths.append(str(file_path)) 
-            
-            if len(mock_file_paths) > 0:
-                actual_lookback_days = len(mock_file_paths) - 1
-                analysis_result = analyze_top_stocks_trend(
-                    file_paths=mock_file_paths,
-                    top_n = 30, # 定義要抓取的前30筆
-                    n_days_lookback=actual_lookback_days, # 依據實際找到的天數設定回溯天數
-                )
 
-                # 3. 輸出結果
-                if analysis_result:
-                    print(analysis_result)
-            else:
-                print("❌ 由於未能取得足夠的交易日路徑，無法進行分析。")
-                
-                
-        # -------------------
-        #top_20_positive_df = get_top_20_institutional_trades_filtered(file_path)
+        # 彙總總體訊息
+        # 假設 TARGET_DATE 是 day_roll[0] (最近一天) 的日期，請確保這裡的 TARGET_DATE 是正確的
+        TARGET_DATE = f"{day_roll[1][4:6]}/{day_roll[1][-2:]}" # 暫時使用 day_roll[1] 的日期作為報表日期
         
-        #print(top_20_positive_df)
-    
-        #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
-        # Send_message_ALL += f"\n-{TARGET_STOCK_NAME} 最近5日收盤價-\n{Send_message}\n--三大法人買超前20名--\n{top_20_positive_df}"
         Send_message_ALL += f"發送時間: {Now_day_time}\n"
         Send_message_ALL += f"***************************\n"
         Send_message_ALL += f"📦 {TARGET_DATE} (庫存股)通知📦\n"
         Send_message_ALL += f"***************************\n"
         Send_message_ALL += f"\n=🥇{TARGET_STOCK_NAME} 最近5日收盤價🥇 =\n{Send_message}"
-        Send_message_ALL += f"== 近5日績效:{total_price_percent} ==\n"
-        Send_message_ALL += message_add  # 加入個股資訊
+        Send_message_ALL += f"== 近5日績效:{total_price_percent_formatted} ==\n"
+        Send_message_ALL += message_add # 加入個股資訊
+
+        ##2025-11-20
                 
     # 針對關注的股票，取得近5日收盤價
     #Send_focused_message_all = ""
@@ -1940,7 +1971,7 @@ def main_run():
     # 將三大法人買超資訊加入
     
     Send_message_ALL += f"\n\n"
-    Send_message_ALL += analysis_result    
+    #Send_message_ALL += analysis_result    
     print(Send_message_ALL)
     
     # ---- line notify 發送訊息 ----1
@@ -1994,7 +2025,7 @@ def main_run():
 
     # 發送全部資訊(庫存股通知、關注股通知、三大法人買超前20)
     analysis_report = Send_message_ALL
-    send_stock_notification(LINE_USER_ID, analysis_report)
+    # send_stock_notification(LINE_USER_ID, analysis_report)
 # ===========================================================
 
 # 1. 初始化運行狀態
