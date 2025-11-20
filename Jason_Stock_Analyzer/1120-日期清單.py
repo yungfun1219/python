@@ -114,6 +114,9 @@ if __name__ == "__main__":
     # 2. 執行日期清單生成
     final_date_list = get_date_list_based_on_time(CSV_FILE_PATH)
 
+    for rol in final_date_list:
+        print(rol)
+    print(f"總共{len(final_date_list)}日")
     if final_date_list:
         print("\n[輸出的日期清單範例]")
         print(f"前 5 筆: {final_date_list[:5]}")
