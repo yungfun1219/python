@@ -5,7 +5,6 @@ import requests
 import pandas as pd
 from typing import Optional, List
 from io import StringIO
-import sys
 from datetime import datetime, timedelta
 import pathlib     # as pathlib
 
@@ -13,17 +12,14 @@ import pathlib     # as pathlib
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 # --- 設定與路徑 ---
-# ⚠️ 請確保 'datas/raw/2_MI_INDEX' 路徑存在或可被建立
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "2_MI_INDEX")
-BASE_URL = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
+# ⚠️ 請確保 'datas/raw/10_TWT44U' 路徑存在或可被建立
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datas", "raw" , "10_TWT44U")
+BASE_URL = "https://www.twse.com.tw/rwd/zh/fund/TWT44U"
 
-Now_time_year = datetime.now().strftime("%Y")  #取得目前系統時間的「年」
-
-# 修正建議: 使用您之前生成的多年份檔案 (trading_day_2021-2025.csv)
+# 假設交易日清單檔案為 trading_day_2021-2025.csv
 CSV_FILE_PATH = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays" / f"trading_day_2021-2025.csv"
 
 def get_date_list_based_on_time(file_path: str) -> Optional[List[str]]:
-    # ... (此函數內容與您提供的原始碼相同，故省略)
     """
     1. 讀取 CSV 檔案內的日期 (假定為交易日清單)。
     2. 根據當前時間 (21:00 前/後) 確定截止日期 (昨天/今天)。
@@ -61,7 +57,7 @@ def get_date_list_based_on_time(file_path: str) -> Optional[List[str]]:
     cutoff_time = datetime.strptime("21:00:00", "%H:%M:%S").time()
     
     if current_time >= cutoff_time:
-        # 21點以後 (含 21:00:00): 截止日為今天
+        # 21點以後 (含 21:00:00): 截止日為今天 (2025/11/23)
         end_date = now.date()
         print(f"【時間判斷】當前時間 ({now.strftime('%H:%M:%S')}) 晚於 21:00，截止日為今天 ({end_date.strftime('%Y/%m/%d')})。")
     else:
@@ -89,16 +85,15 @@ def get_date_list_based_on_time(file_path: str) -> Optional[List[str]]:
     print(f"截止日期: {filtered_dates[-1]}")
     
     return filtered_dates
-# --- 輔助函數 (為使程式碼可執行而加入) ---
+# --- 輔助函數 ---
+# 檢查並建立所需的【資料夾】
 def _check_folder_and_create(filepath: str):
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    # 使用 pathlib 確保跨平台兼容性
+    pathlib.Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
 def _fetch_twse_data(url: str) -> Optional[str]:
-    # ... (此函數內容與您提供的原始碼相同，故省略)
     """嘗試從 TWSE 抓取資料，並返回原始文本。"""
-    response = None # 初始化 response
     try:
-        # 設置 User-Agent 以模擬瀏覽器行為
         headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -108,66 +103,60 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         response.encoding = 'Big5'
         
         # 檢查 TWSE 回傳內容是否為錯誤訊息
-        if "查詢日期大於今日" in response.text or "很抱歉" in response.text or "查無相關資料" in response.text:
-            print("⚠️ TWSE 網站返回錯誤訊息，該日可能無資料或日期超出範圍。")
+        if "很抱歉" in response.text or "查無相關資料" in response.text:
+            print("⚠️ TWSE 網站返回錯誤訊息，該日可能無資料。")
             return None
         
         return response.text
         
     except requests.exceptions.HTTPError as errh:
-        # 4xx/5xx 錯誤
         print(f"❌ HTTP 錯誤：{errh} (該日可能無交易資料)")
     except requests.exceptions.RequestException as err:
-        # 連線、超時或其他 Requests 錯誤
         print(f"❌ 連線或 Requests 錯誤: {err}")
     except Exception as e:
-        # 其他錯誤
         print(f"❌ 發生其他錯誤: {e}")
         
-    # 如果在 try 區塊中發生任何錯誤，會執行到這裡並返回 None
     return None
 
 def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame]:
-    # ... (此函數內容與您提供的原始碼相同，故省略)
     """將 TWSE 返回的文本解析為 Pandas DataFrame。"""
     try:
         data = StringIO(response_text)
-        # header_row=1: MI_INDEX 報表實際的表頭在索引 1 (0-based)
+        # 報表實際的表頭在索引 1 (0-based)
         df = pd.read_csv(data, 
                          header=header_row, 
                          encoding='utf-8-sig', 
                          skipinitialspace=True,
                          engine='python',
-                         on_bad_lines='skip' # <-- 這個參數會忽略欄位數不正確的行，避免程式崩潰
+                         on_bad_lines='skip' 
         )
         if not df.empty:
             df.columns = df.columns.str.strip() # 清理欄位名稱
             
-            # 刪除結尾可能的空白行或備註行
-            if '指數' in df.columns:
-                 # 移除 '指數' 欄位為空字串或空白的行
-                 df = df[df['指數'].astype(str).str.strip() != '']
-                 
-            # 移除所有內容為空的欄位 (如 CSV 結尾的空欄位)
+            # 移除所有內容為空的欄位
             df.dropna(axis=1, how='all', inplace=True)
             
             if df.empty:
                 print("⚠️ 解析 CSV 後 DataFrame 為空，可能無有效資料。")
                 return None
+            
+            # TWT44U 報表通常以「投信」作為第一欄位，移除空白行
+            if '投信' in df.columns:
+                 df = df[df['投信'].astype(str).str.strip() != '']
                 
             return df
-        return None 
+        return None
 
     except Exception as e:
         print(f"❌ 解析 CSV 數據時發生錯誤: {e}")
         return None
 
 
-# --- 核心單日抓取函數 (已移除檔案檢查，僅負責抓取和儲存) ---
+# --- 核心單日抓取函數 ---
 
-def fetch_twse_mi_index_single(target_date: str) -> Optional[pd.DataFrame]:
+def fetch_twse_twt44u_single(target_date: str) -> Optional[pd.DataFrame]:
     """
-    抓取指定日期的 MI_INDEX 報告。
+    抓取指定日期的 TWT44U 報告 (投信買賣超彙總表)。
 
     Args:
         target_date: 欲抓取的日期，格式為 YYYYMMDD。
@@ -179,8 +168,10 @@ def fetch_twse_mi_index_single(target_date: str) -> Optional[pd.DataFrame]:
         print(f"日期格式錯誤: {target_date}")
         return None
         
-    url = f"{BASE_URL}?date={target_date}&type=ALLBUT0999&response=csv"
-    filename = os.path.join(OUTPUT_DIR, f"{target_date}_MI_INDEX_Sector.csv") 
+    url = f"{BASE_URL}?date={target_date}&response=csv"
+    
+    # 使用 os.path.join 確保跨平台兼容性
+    filename = os.path.join(OUTPUT_DIR, f"{target_date}_TWT44U_InvestmentTrust.csv") 
     
     _check_folder_and_create(filename) # 確保目錄存在
     
@@ -190,13 +181,11 @@ def fetch_twse_mi_index_single(target_date: str) -> Optional[pd.DataFrame]:
     if response_text is None: 
         return None
     
-    df = _read_twse_csv(response_text, header_row=1)
+    # 假設 TWT44U 的表頭在索引 1
+    df = _read_twse_csv(response_text, header_row=1) 
 
     if df is not None:
-        # 清理 '指數' 欄位中的空白，並移除空列 (沿用您的清理邏輯)
-        if '指數' in df.columns:
-            df = df[df['指數'].astype(str).str.strip() != '']
-            
+        
         # 儲存資料
         try:
             df.to_csv(filename, index=False, encoding='utf-8-sig')
@@ -210,35 +199,32 @@ def fetch_twse_mi_index_single(target_date: str) -> Optional[pd.DataFrame]:
         print(f"  ⚠️ {target_date} 資料抓取成功但解析後為空，跳過儲存。")
         return None
 
-# --- 批次處理與重試函數 (已修正：檔案存在不等待 2 秒) ---
+# --- 批次處理與重試函數 (檔案存在不等待 2 秒) ---
 
-def batch_fetch_twse_mi_index(date_list: List[str]):
+def batch_fetch_twse_twt44u(date_list: List[str]):
     """
-    針對提供的日期清單，逐一抓取 TWSE MI_INDEX 資料，並在失敗時實作重試機制。
+    針對提供的日期清單，逐一抓取 TWSE TWT44U 資料，並在失敗時實作重試機制。
     """
-    print("--- 開始批次抓取 TWSE MI_INDEX 資料 ---")
+    print("--- 開始批次抓取 TWSE TWT44U 資料 ---")
     
     for target_date in date_list:
         target_date = target_date.replace("/", "")
         max_attempts = 4
         
-        filename = os.path.join(OUTPUT_DIR, f"{target_date}_MI_INDEX_Sector.csv")
+        filename = os.path.join(OUTPUT_DIR, f"{target_date}_TWT44U_InvestmentTrust.csv")
         _check_folder_and_create(filename) # 確保目錄存在
-        
-        # VVVVVVVVVVVVVVVVVVVVVVVVVV
-        # 關鍵修正：步驟 1. 檢查檔案是否已存在
+
+        # 關鍵修正：步驟 1. 檢查檔案是否已存在，存在則跳過延遲
         if os.path.exists(filename):
             print(f"  ℹ️ {target_date} 資料已存在 ({filename})，跳過抓取。")
-            # 檔案已存在，跳過後面的抓取和延遲，直接進入下一個日期
-            continue 
-        # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            continue  # 立即跳到下一個日期，不執行延遲
         
         # 步驟 2. 檔案不存在，開始執行抓取和重試
         is_successful = False
         for attempt in range(1, max_attempts + 1):
             
             # 執行抓取
-            df = fetch_twse_mi_index_single(target_date)
+            df = fetch_twse_twt44u_single(target_date)
             
             if df is not None:
                 # 成功
@@ -249,6 +235,8 @@ def batch_fetch_twse_mi_index(date_list: List[str]):
             # 失敗處理
             if attempt < max_attempts:
                 delay_hours = attempt 
+                
+                # 測試環境用:
                 delay_seconds = delay_hours * 5 
 
                 print(f"🚨 {target_date} 抓取失敗 (第 {attempt} 次嘗試)。將在 {delay_seconds} 秒後重試 (下次等待 {delay_hours} 小時)...")
@@ -257,13 +245,10 @@ def batch_fetch_twse_mi_index(date_list: List[str]):
                 # 超過最大嘗試次數
                 print(f"❌ {target_date} 資料經過 {max_attempts} 次嘗試後仍然失敗，跳過此日期。")
         
-        # VVVVVVVVVVVVVVVVVVVVVVVVVV
         # 步驟 3. 只有在執行了網路抓取或重試之後，才需要等待 2 秒
-        # 檔案已存在的情況在 if os.path.exists(filename): 處已經用 continue 跳過
         if is_successful or attempt == max_attempts:
-             print("等待 2 秒後，準備處理下一個日期...")
-             time.sleep(2)
-        # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            print("等待 2 秒後，準備處理下一個日期...")
+            time.sleep(2)
 
 
 # --- 執行範例 ---
@@ -275,6 +260,6 @@ if __name__ == "__main__":
     
     if final_date_list:
         print("--- 開始抓取/檢查檔案 ---")
-        batch_fetch_twse_mi_index(final_date_list)
+        batch_fetch_twse_twt44u(final_date_list)
     else:
         print("沒有可供處理的日期清單，程式結束。")

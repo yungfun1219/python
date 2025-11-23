@@ -178,28 +178,37 @@ def fetch_twse_BWIBBU_d_single(target_date: str) -> Optional[pd.DataFrame]:
     
     _check_folder_and_create(filename) # 確保目錄存在
     
-    print(f"  -> 嘗試抓取 {target_date}...")
+    print(f"  -> 嘗試抓取 {target_date}...")
     
     response_text = _fetch_twse_data(url)
     if response_text is None: 
+        # 資料抓取失敗，_fetch_twse_data 已處理錯誤訊息
         return None
     
     df = _read_twse_csv(response_text, header_row=1)
 
-    # print("測試1:", response_text)
-    # print("測試2:",df)
-    # sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
-    
-    # if df is not None and '指數' in df.columns:
-    #     # 清理 '指數' 欄位中的空白，並移除空列
-    #     df = df[df['指數'].astype(str).str.strip() != '']
-        
+    # VVVVVVVVVVVVVVVVVVVVVVVVVV
+    # 關鍵修正：在嘗試 to_csv 之前，檢查 df 是否為 None
+    if df is not None:
+        # 執行數據清理
+        if '證券代號' in df.columns:
+            # 清理 '證券代號' 欄位中的空白，並移除空列
+            df = df[df['證券代號'].astype(str).str.strip() != '']
+
         # 儲存資料
-    df.to_csv(filename, index=False, encoding='utf-8-sig')
-    print(f"  ✅ {target_date} 資料儲存成功: {filename}")
-    return df
-        
-    
+        # 這一行就是之前發生錯誤的地方，現在有 df is not None 的保護
+        try:
+            df.to_csv(filename, index=False, encoding='utf-8-sig')
+            print(f"  ✅ {target_date} 資料儲存成功: {filename}")
+        except Exception as e:
+            print(f"❌ {target_date} 資料儲存失敗: {e}")
+            return None # 儲存失敗也返回 None
+            
+        return df
+    else:
+        # 如果 df 是 None，表示解析或數據本身有問題，發出警告
+        print(f"  ⚠️ {target_date} 資料抓取成功但解析後為空，跳過儲存。")
+        return None
 
 # --- 批次處理與重試函數 (滿足使用者 2/3/4/5 點需求) ---
 
@@ -213,7 +222,7 @@ def batch_fetch_twse_BWIBBU_d(date_list: List[str]):
     
     for target_date in date_list:
         target_date = target_date.replace("/", "")
-        max_attempts = 4  # 首次嘗試 (1) + 3 次重試 = 最多 4 次機會
+        max_attempts = 1  # 首次嘗試 (1) + 3 次重試 = 最多 4 次機會
         
         for attempt in range(1, max_attempts + 1):
             
@@ -241,7 +250,8 @@ def batch_fetch_twse_BWIBBU_d(date_list: List[str]):
             else:
                 # 超過最大嘗試次數
                 print(f"❌ {target_date} 資料經過 {max_attempts} 次嘗試後仍然失敗，跳過此日期。")
-
+        print("等待 2 秒後，準備處理下一個日期...")
+        time.sleep(2)
 
 # --- 執行範例 ---
 
@@ -250,8 +260,8 @@ if __name__ == "__main__":
     # 建議包含一些已知有資料的日期來測試成功案例。
     
     # 2. 執行日期清單生成
-    3final_date_list = get_date_list_based_on_time(CSV_FILE_PATH)
-    final_date_list = ["20251118"]
+    final_date_list = get_date_list_based_on_time(CSV_FILE_PATH)
+    # final_date_list = ["20210101"]
     # DATE_LIST_TO_FETCH = [
     #     "20251114", # 成功範例 1
     #     "20251115", # 成功範例 2

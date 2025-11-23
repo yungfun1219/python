@@ -1663,6 +1663,17 @@ def main_run():
     # 處理要抓取哪一天的資料邏輯
     result_found_next = get_previous_n_trading_days(Trading_day_file_path, DATE_TO_CHECK_NOW)
     
+    if result_found_next == None:
+        DATE_TO_CHECK_NOW = DATE_TO_CHECK_NOW - timedelta(days=1)    
+        result_found_next = get_previous_n_trading_days(Trading_day_file_path, DATE_TO_CHECK_NOW)
+    
+    inclusion_date = today_date - timedelta(days=1)
+    
+    print(f"測試1:{Trading_day_file_path}")
+    print(f"測試1:{DATE_TO_CHECK_NOW}") 
+    print(f"測試2:{result_found_next}")
+    sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
+    
     if DATE_TO_CHECK == result_found_next[-1]:  # 如果今天是交易日
         TARGET_DATE = DATE_TO_CHECK  # 抓取今天的資料  
         print(f"\n[時間檢查]: 今天日期 ({DATE_TO_CHECK}) 為交易日。")    
