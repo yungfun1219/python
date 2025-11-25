@@ -1476,8 +1476,6 @@ def analyze_top_stocks_trend(
         #output_lines.append(f"{code_str} | {name_str} | {trend_str} | {volume_str}")
         output_lines.append(f"{name_str}{trend_str}({volume_str}張)")
         
-        #print(f"✅ {name_str.replace('  ', '')}")
-        #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
     output_lines.append("=" * TOTAL_WIDTH)
     output_lines.append(f"🔴: 該日出現在 Top {top_n} 名單中 \n⚪️: 該日未出現在 Top {top_n} 名單中")
     
@@ -1989,8 +1987,12 @@ def main_run():
     # 處理要抓取哪一天的資料邏輯
     result_found_days = get_previous_n_trading_days(Trading_day_file_path, DATE_TO_CHECK_NOW)
     
+    
+    #print(f"✅ {DATE_TO_CHECK_NOW}")
+    #sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
+    
     if result_found_days == None:
-        DATE_TO_CHECK_NOW = DATE_TO_CHECK_NOW - timedelta(days=1)    
+        DATE_TO_CHECK_NOW = datetime.now() - timedelta(days=1)    
         result_found_days = get_previous_n_trading_days(Trading_day_file_path, DATE_TO_CHECK_NOW)
     
     if DATE_TO_CHECK == result_found_days[-1]:  # 如果今天是交易日
@@ -2072,7 +2074,7 @@ def main_run():
                                 
     # --- B. 處理 STOCK_DAY (任務 1 - 當月覆蓋) ---
     if stock_list and monthly_date:
-        fetch_twse_stock_day_single_month(monthly_date, stock_list)
+       # fetch_twse_stock_day_single_month(monthly_date, stock_list)
         print("測試OK。")
     elif not stock_list:
         print("警告：無法取得股票清單 (stocks_all.csv)，跳過 STOCK_DAY 抓取。")
