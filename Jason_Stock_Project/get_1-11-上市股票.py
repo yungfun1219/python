@@ -21,10 +21,9 @@ CSV_FILE_PATH = os.path.join(CODE_DIR, "datas", "processed", "get_holidays", "tr
 
 
 # --- 輔助函數 ---
+# 從交易日清單中找到當前日期的【前一個交易日】。
 def _get_previous_trading_day(file_path: str, current_date: datetime.date) -> Optional[datetime.date]:
-    """
-    從交易日清單中找到當前日期的【前一個交易日】。
-    """
+    
     try:
         # 讀取交易日清單
         df = pd.read_csv(file_path, encoding='utf-8-sig')
@@ -73,10 +72,12 @@ def _get_previous_trading_day(file_path: str, current_date: datetime.date) -> Op
         print(f"致命錯誤：處理交易日清單時發生錯誤: {e}")
         return None
     
+# 檢查並建立所需的【資料夾】
 def _check_folder_and_create(filepath: str):
-    """檢查並建立所需的【資料夾】"""
+    
     pathlib.Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
+# 根據 21:00 基準判斷目標日期
 def _get_target_date_and_month() -> Dict[str, Optional[str]]:
     """
     根據 21:00 基準判斷目標日期：
@@ -128,10 +129,9 @@ def _get_target_date_and_month() -> Dict[str, Optional[str]]:
         "start_time": start_time
     }
 
+# 從 stocks_all.csv 讀取股票清單，並依據【市場別】欄位篩選出「上市」公司。
 def get_stock_list(file_path: str) -> Optional[List[str]]:
-    """
-    從 stocks_all.csv 讀取股票清單，並依據【市場別】欄位篩選出「上市」公司。
-    """
+
     try:
         # 讀取整個 CSV 檔案
         df = pd.read_csv(file_path, encoding='utf-8-sig')
@@ -184,8 +184,9 @@ def get_stock_list(file_path: str) -> Optional[List[str]]:
         print(f"錯誤: 讀取或處理股票清單檔案 {file_path} 時發生錯誤: {e}")
         return None
 
+# 將 TWSE 返回的文本解析為 Pandas DataFrame。
 def _read_twse_csv(response_text: str, header_row: int = 1, first_col_name: Optional[str] = None) -> Optional[pd.DataFrame]:
-    """將 TWSE 返回的文本解析為 Pandas DataFrame。"""
+    
     try:
         data = StringIO(response_text)
         df = pd.read_csv(data, 
@@ -211,7 +212,6 @@ def _read_twse_csv(response_text: str, header_row: int = 1, first_col_name: Opti
 
 
 # --- 通用日報抓取主函數 (僅抓取當日) ---
-
 def fetch_single_daily_report(
     target_date: str, 
     base_url: str, 
@@ -297,12 +297,11 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         print(f"❌ 發生其他錯誤: {e}")
         
     return None
-# --- 任務 1: STOCK_DAY 獨立處理 (當月/覆蓋) ---
 
+# --- 任務 1: STOCK_DAY 獨立處理 (當月/覆蓋) ---
+# 抓取當月所有股票的 STOCK_DAY 資料，並直接覆蓋檔案。
 def fetch_twse_stock_day_single_month(month_date: str, stock_list: List[str]):
-    """
-    抓取當月所有股票的 STOCK_DAY 資料，並直接覆蓋檔案。
-    """
+
     print(f"\n--- 🚀 開始 STOCK_DAY 抓取 ({month_date[:6]}) (將直接覆蓋) ---")
     
     OUTPUT_BASE_DIR = os.path.join(CODE_DIR, "datas", "raw", "1_STOCK_DAY")
@@ -357,7 +356,6 @@ def fetch_twse_stock_day_single_month(month_date: str, stock_list: List[str]):
             time.sleep(2)
             
     print(f"\n--- 🏁 STOCK_DAY 抓取結束。成功覆蓋: {tasks_successful}, 失敗: {tasks_failed} ---")
-
 
 # --- 主執行函數 ---
 
@@ -418,8 +416,8 @@ def main():
                                 first_col_name="證券代號", header_row=1)
 
         # 10. 融資融券餘額 (TWT92U)
-        fetch_single_daily_report(daily_date, "https://www.twse.com.tw/rwd/zh/marginTrading/TWT92U", "4_TWT92U", "_TWT92U_Margin",
-                                first_col_name="股票代號", header_row=1)
+        #fetch_single_daily_report(daily_date, "https://www.twse.com.tw/rwd/zh/marginTrading/TWT92U", "4_TWT92U", "_TWT92U_Margin",
+        #                        first_col_name="股票代號", header_row=1)
                                 
     # --- B. 處理 STOCK_DAY (任務 1 - 當月覆蓋) ---
     if stock_list and monthly_date:

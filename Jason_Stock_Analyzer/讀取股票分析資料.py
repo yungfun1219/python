@@ -1,8 +1,10 @@
 import pandas as pd
 from typing import Optional
+import os
 
 # 檔案的絕對路徑 (請根據您的實際路徑調整)
-EXCEL_FILE_PATH = r"D:\Python_repo\python\Jason_Stock_Analyzer\datas\股票分析.xlsx"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EXCEL_FILE_PATH = os.path.join(BASE_DIR, "datas", "股票分析.xlsx")
 
 def get_inventory_stocks(file_path: str) -> Optional[pd.DataFrame]:
     """
@@ -111,7 +113,7 @@ if __name__ == "__main__":
     
     if inventory_df is not None:
         print("【庫存股票 (庫存>0)】")
-        print(inventory_df)
+        print(inventory_df["證券名稱"].to_string(index = False))
     
     if followed_df is not None:
         print("\n【關注股票】")
