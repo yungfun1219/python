@@ -1187,6 +1187,10 @@ def get_previous_n_trading_days(
         input_date = input_dt.date()
         input_time = input_dt.time()
         
+        # print("檢查輸入日期",input_date)
+        # print("檢查輸入時間",input_time)
+        # sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
+        
         # 2. 根據時間判斷「有效查詢日期」
         # 如果時間在 21:00 (含) 之後，有效日期為今天；否則為前一天。
         cutoff_time = input_dt.replace(hour=CUTOFF_HOUR, minute=0, second=0, microsecond=0).time()
@@ -1246,13 +1250,15 @@ def get_previous_n_trading_days(
         trading_days_found.reverse()
 
         if len(trading_days_found) == n_days:
-            # 完整收集到 N 天
             print(f"✅ 成功收集到 {n_days} 個交易日。")
             return trading_days_found
-        else:
-            # 未收集到 N 天 (通常是數據不足)
+        elif len(trading_days_found) > 0:
             print(f"⚠️ 僅找到 {len(trading_days_found)} 個交易日，數量不足 {n_days} 個。")
-            return trading_days_found # 即使不足也回傳找到的結果
+            return trading_days_found 
+        else:
+            # ⚠️ 修正 3：如果一個交易日都沒找到，回傳 None
+            print(f"【警告】在追溯的 {max_lookback_days} 天內，未找到任何交易日。")
+            return None # 確保回傳 None
 
     except pd.errors.EmptyDataError:
         print("【錯誤】檔案內容為空。")
@@ -1989,9 +1995,19 @@ def main_run():
     # 處理要抓取哪一天的資料邏輯
     result_found_days = get_previous_n_trading_days(Trading_day_file_path, DATE_TO_CHECK_NOW)
     
+    print(f"✅ {Trading_day_file_path}")
+ 
+    
     if result_found_days == None:
-        DATE_TO_CHECK_NOW = DATE_TO_CHECK_NOW - timedelta(days=1)    
+        DATE_TO_CHECK_NOW = NOW_DATETIME - timedelta(days=1)  
+        DATE_TO_CHECK_NOW = DATE_TO_CHECK_NOW.strftime("%Y/%m/%d %H:%M:%S")  
+        print(f"轉換後✅ {NOW_DATETIME}")
+        print(f"轉換後✅ {DATE_TO_CHECK_NOW}")
         result_found_days = get_previous_n_trading_days(Trading_day_file_path, DATE_TO_CHECK_NOW)
+    
+    
+    # print(f"轉換後✅ {result_found_days}")
+    # sys.exit(1)  # 暫停執行，請確認日期無誤後再移除此行
     
     if DATE_TO_CHECK == result_found_days[-1]:  # 如果今天是交易日
         TARGET_DATE = DATE_TO_CHECK  # 抓取今天的資料  
