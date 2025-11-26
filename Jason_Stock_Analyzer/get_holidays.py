@@ -347,7 +347,7 @@ if __name__ == '__main__':
     BASE_DIR_get_twse = pathlib.Path(__file__).resolve().parent / "datas" / "twse_holidays"
     BASE_DIR_get_holidays = pathlib.Path(__file__).resolve().parent / "datas" / "processed" / "get_holidays"
     
-    for get_year in range(start_year, end_year+2):
+    for get_year in range(start_year, end_year+1):
         # ----------------------------------------------------
         # 抓取並儲存 TWSE 休市日期資料，每年一次 
         print(f"\n-----開始抓取 {get_year} 年度休市日期資料-----")

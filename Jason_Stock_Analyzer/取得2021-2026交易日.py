@@ -1,6 +1,5 @@
 import pandas as pd
 import os
-import sys  # 引入 sys 模組用於退出程式
 from dateutil.rrule import rrule, DAILY, MO, TU, WE, TH, FR
 
 # --- 設定處理參數 ---
@@ -16,30 +15,10 @@ trading_day_file_path = os.path.join(base_directory, trading_day_file_name)
 # 定義統一的日期格式 (用於集合比對)
 DATE_FORMAT = '%Y/%#m/%#d' # 例如：2021/1/1
 
-def check_files_exist():
-    """
-    檢查所有需要的輸入檔案和目錄是否存在。
-    """
-    print("--- 檔案/目錄存在性檢查 ---")
-    
-    # 1. 檢查基礎目錄
-    if not os.path.isdir(base_directory):
-        print(f"❌ 錯誤: 基礎目錄不存在！請檢查路徑：{base_directory}")
-        return False
-        
-    # 2. 檢查輸入的休市日檔案
-    if not os.path.exists(holiday_file_path):
-        print(f"❌ 錯誤: 輸入的休市日檔案不存在！請檢查路徑：{holiday_file_path}")
-        return False
-    
-    print("✅ 檔案和目錄檢查通過。")
-    return True
-
 def get_trading_days(start_year, end_year, holiday_csv_path):
     """
     生成指定年度範圍內的所有交易日（排除週六、週日和特定休市日）。
     """
-    print("\n" + "=" * 40)
     print("--- 步驟 1: 生成所有平日清單 (週一至週五) ---")
     
     start_date = pd.to_datetime(f'{start_year}-01-01')
@@ -79,7 +58,6 @@ def get_trading_days(start_year, end_year, holiday_csv_path):
         print(f"✅ 已讀取休市日檔案，共 {len(holidays_set)} 筆休市日期。")
 
     except FileNotFoundError:
-        # 由於我們在執行前已經檢查過檔案，這裡的 FileNotFoundError 理論上不會發生
         print(f"❌ 錯誤：找不到休市日檔案。請檢查路徑: {holiday_csv_path}")
         return []
     except Exception as e:
@@ -104,17 +82,7 @@ def get_trading_days(start_year, end_year, holiday_csv_path):
 # --- 執行函式、儲存檔案 ---
 if __name__ == '__main__':
     
-    # *** 新增的檔案檢查功能 ***
-    if not check_files_exist():
-        # 如果檢查未通過，印出提示並退出程式
-        print("\n" + "=" * 40)
-        print("🚨 由於必要的檔案/目錄不存在，程式已終止。")
-        print("=" * 40)
-        sys.exit(1) # 退出程式，返回非零狀態碼表示錯誤
-    # *************************
-    
-    
-    print("\n" + "=" * 40)
+    print("=" * 40)
     # 呼叫函式
     all_trading_days = get_trading_days(
         start_year=min(target_years),
