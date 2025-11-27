@@ -365,6 +365,10 @@ def main():
     target_info = _get_target_date_and_month()
     daily_date = target_info["daily_date"]
     monthly_date = target_info["monthly_date"]
+    # 要單獨抓取資料 --> 完成後要標註起來
+    #daily_date = 20251125
+    #monthly_date = 202511
+    ###############
     start_time = target_info["start_time"]
     
     # 2. 獲取【股票代號】清單
@@ -416,7 +420,7 @@ def main():
                                 first_col_name="證券代號", header_row=1)
 
         # 10. 融資融券餘額 (TWT92U)
-        #fetch_single_daily_report(daily_date, "https://www.twse.com.tw/rwd/zh/marginTrading/TWT92U", "4_TWT92U", "_TWT92U_Margin",
+        #fetch_single_daily_report(daily_date, "https://www.twse.com.tw/rwd/zh/marginTrading/TWT92U", "12_TWT92U", "_TWT92U_Margin",
         #                        first_col_name="股票代號", header_row=1)
                                 
     # --- B. 處理 STOCK_DAY (任務 1 - 當月覆蓋) ---
