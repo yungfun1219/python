@@ -2,7 +2,7 @@ import os
 import pathlib
 import time as time_module
 from datetime import date, datetime, timedelta, time as time_TimeClass
-# 導入業務模組
+# 導入自行製做的模組
 import date_utils
 import data_fetcher
 import report_generator
