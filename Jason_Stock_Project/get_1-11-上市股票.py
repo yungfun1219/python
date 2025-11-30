@@ -406,6 +406,9 @@ def main():
     daily_date = target_info["daily_date"]
     monthly_date = target_info["monthly_date"]
     start_time = target_info["start_time"]
+    # -- 單獨抓取
+    daily_date = "20251125"
+    monthly_date = "202511"
     
     # --- 3. 獨立執行：獲取【股票代號】清單 ---
     stock_list = get_stock_list(STOCKS_ALL_CSV)

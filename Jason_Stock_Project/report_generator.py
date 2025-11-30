@@ -86,7 +86,7 @@ def extract_excel_sheet_filter_and_save(excel_file_path: str, sheet_name: str, f
     output_csv_path = output_dir / csv_file_name
     
     # 4. 儲存為 CSV 檔案
-    df.to_csv(output_csv_path, index=False, encoding='big5-sig')
+    df.to_csv(output_csv_path, index=False, encoding='big5')
 
     return output_csv_path
 

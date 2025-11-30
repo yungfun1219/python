@@ -5,6 +5,7 @@ from typing import Optional, Tuple, List, Union, Dict, Any
 from io import StringIO
 import pandas as pd # 用於資料處理與分析
 from datetime import date, datetime, timedelta, time as time_TimeClass
+import re 
 
 
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +19,7 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         response.raise_for_status() 
-        response.encoding = 'Big5'
+        response.encoding = 'big5'
         
         if "很抱歉" in response.text or "查無相關資料" in response.text:
             return None
@@ -34,11 +35,11 @@ def _fetch_twse_data(url: str) -> Optional[str]:
         
     return None
 
-# 共用的輔助函式，用於處理 TWSE 的 Big5 編碼和 Pandas 讀取邏輯。
+# 共用的輔助函式，用於處理 TWSE 的 big5 編碼和 Pandas 讀取邏輯。
 def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame]:
     """
     Args:
-        response_text: HTTP 請求回傳的文字內容 (Big5 編碼)。
+        response_text: HTTP 請求回傳的文字內容 (big5 編碼)。
         header_row: CSV 檔案中資料表頭所在的行數 (0-indexed)。
     Returns:
         Optional[pd.DataFrame]: 處理後的 DataFrame。
@@ -51,7 +52,7 @@ def _read_twse_csv(response_text: str, header_row: int) -> Optional[pd.DataFrame
             header=header_row,          # 資料表頭所在的行數
             skipinitialspace=True,      # 跳過分隔符後的空格
             on_bad_lines='skip',        # 跳過格式不正確的行
-            encoding='Big5'             # 使用 Big5 編碼讀取
+            encoding='big5'             # 使用 big5 編碼讀取
         )
         # TWSE 的 CSV 欄位名稱常有隱藏空格，導致 df.columns 無法正確匹配。
         if not df.empty:
@@ -130,7 +131,7 @@ def get_stock_list(file_path: str) -> Optional[List[str]]:
 
     try:
         # 讀取整個 CSV 檔案
-        df = pd.read_csv(file_path, encoding='big5')
+        df = pd.read_csv(file_path, encoding='utf-8')
         
         # 1. 尋找【市場別】欄位
         # 嘗試從欄位名稱中找出包含 "市場別"、"類別" 或 "市場" 的欄位
