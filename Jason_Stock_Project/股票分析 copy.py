@@ -24,8 +24,8 @@ def convert_roc_to_gregorian(roc_date_str):
     return None
 
 # --- 設定路徑與證券資訊 ---
-STOCK_CODE = "2330"
-STOCK_NAME = "台積電" 
+STOCK_CODE = "8039"
+STOCK_NAME = "台虹" 
 input_dir = r"D:\Python_repo\python\Jason_Stock_Analyzer\datas\raw\1_STOCK_DAY\\" + STOCK_CODE
 output_file = f"{STOCK_CODE}_stocks_data.csv"
 output_path = os.path.join(os.path.dirname(input_dir), output_file) 

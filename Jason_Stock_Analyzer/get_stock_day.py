@@ -23,7 +23,7 @@ RAW_DATA_DIR = BASE_DIR / "datas" / "raw" / "1_STOCK_DAY"
 
 # 批量處理時，此變數將被清單中的代號取代
 TARGET_CODE = '1101' 
-MIN_START_DATE_STR = '2025/10/01'
+MIN_START_DATE_STR = '2025/01/01'
 
 # 欄位名稱設定
 CODE_COL = '有價證券代號'

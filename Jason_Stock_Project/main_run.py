@@ -3,12 +3,15 @@ import pathlib
 import time as time_module
 from datetime import date, datetime, timedelta, time as time_TimeClass
 # 導入自行製做的模組
+
 import date_utils
 import data_fetcher
 import report_generator
+
 # 導入排程與鍵盤監聽模組
 import keyboard
 import schedule
+
 # 導入環境變數載入 (如果使用 .env 檔案)
 from dotenv import load_dotenv
 
