@@ -7,6 +7,7 @@ import requests
 import pandas as pd
 import urllib3
 import pathlib
+import os  # <--- 1. 修正點：移到最上方全域匯入
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from bs4 import BeautifulSoup
@@ -22,13 +23,12 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==========================================================
 # 參數與路徑設定 (使用 pathlib)
 # ==========================================================
-# __file__ 可能是相對路徑，resolve() 確保轉為絕對路徑
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 LIST_FILE_PATH = BASE_DIR / "datas" / "raw" / "stocks_all.csv"
 RAW_DATA_DIR = BASE_DIR / "datas" / "raw" / "1_STOCK_DAY"
 ENV_PATH = BASE_DIR / "line_API.env"
 
-MIN_START_DATE_STR = '2025/01/01'
+MIN_START_DATE_STR = '2025/11/01'
 CODE_COL = '有價證券代號'
 LIST_DATE_COL = '上市日'
 
@@ -37,20 +37,18 @@ if not RAW_DATA_DIR.exists():
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # ==========================================================
-# 單一功能函式庫 (不互相呼叫，只做單一任務)
+# 單一功能函式庫
 # ==========================================================
 
 def setup_line_api(env_file_path):
     """讀取環境變數並初始化 Line API"""
+    # 2. 修正點：函式內部乾淨，直接使用全域的 os
     if not env_file_path.exists():
         print(f"【警告】找不到設定檔: {env_file_path}")
         return None, None
     
     load_dotenv(env_file_path)
-    token = "這裡請填入您的TOKEN或是確保env有讀取到" # 為了安全，建議還是從env讀取
-    token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN") # 這裡修正為使用 os (需要 import os 或使用 os.environ)
-    # 由於 pathlib 操作環境變數仍需 os，這裡補充 import os
-    import os 
+    
     token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
     user_id = os.getenv("LINE_USER_ID")
 
@@ -63,7 +61,9 @@ def setup_line_api(env_file_path):
         except Exception as e:
             print(f"【錯誤】Line API 初始化失敗: {e}")
             return None, None
-    return None, None
+    else:
+        print("【提示】未讀取到 Token 或 User ID，Line 通知功能將停用。")
+        return None, None
 
 def send_line_message(api, user_id, text):
     """發送 Line 訊息"""
@@ -84,6 +84,10 @@ def load_stock_codes(csv_path):
     
     try:
         df = pd.read_csv(csv_path, dtype={CODE_COL: str})
+        if CODE_COL not in df.columns:
+            print(f"【錯誤】CSV 中找不到欄位: {CODE_COL}")
+            return []
+            
         codes = df[CODE_COL].str.strip().dropna().tolist()
         print(f"【成功】取得 {len(codes)} 筆代號")
         return codes
@@ -113,6 +117,9 @@ def calculate_crawl_months(listing_date_str):
         if not listing_date_str:
             return []
         
+        # 處理日期格式，確保是 YYYY/MM/DD
+        listing_date_str = listing_date_str.replace('-', '/')
+        
         actual_date = datetime.strptime(listing_date_str, '%Y/%m/%d').date()
         min_date = datetime.strptime(MIN_START_DATE_STR, '%Y/%m/%d').date()
         
@@ -121,12 +128,17 @@ def calculate_crawl_months(listing_date_str):
         
         month_list = []
         curr = start_date
+        # 若 start_date 是 2023/01/15，我們還是要把 202301 加入
+        # 簡單做法：將 curr 設為該月1號
+        curr = curr.replace(day=1)
+        
         while curr <= today:
             month_list.append(curr.strftime('%Y%m'))
             curr += relativedelta(months=1)
             
         return month_list
     except ValueError:
+        print(f"   日期格式錯誤: {listing_date_str}")
         return []
 
 def convert_roc_date(roc_date_str):
@@ -158,9 +170,16 @@ def fetch_monthly_data(stock_code, year_month):
             return None
             
         # 解析表格
-        columns = [th.text.strip() for th in table.find('thead').find_all('th')][1:]
+        thead = table.find('thead')
+        tbody = table.find('tbody')
+        
+        if not thead or not tbody:
+            print("表格結構不完整")
+            return None
+
+        columns = [th.text.strip() for th in thead.find_all('th')][1:]
         rows = []
-        for tr in table.find('tbody').find_all('tr'):
+        for tr in tbody.find_all('tr'):
             tds = [td.text.strip() for td in tr.find_all('td')]
             if tds:
                 tds[0] = convert_roc_date(tds[0]) # 呼叫轉換日期
@@ -174,7 +193,7 @@ def fetch_monthly_data(stock_code, year_month):
         return None
 
 def remove_current_month_data(csv_path):
-    """從 CSV 檔案中刪除當前月份的資料 (避免重複寫入不完整月份)"""
+    """從 CSV 檔案中刪除當前月份的資料"""
     if not csv_path.exists():
         return
     
@@ -190,14 +209,15 @@ def remove_current_month_data(csv_path):
         # 篩選非當月
         new_df = df[df['temp_ym'] != current_ym].drop(columns=['temp_date', 'temp_ym'])
         
+        # 如果有刪除資料，才回存
         if len(new_df) < len(df):
             new_df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-            print(f"   已清除 {csv_path.name} 當月舊資料")
+            print(f"   已清除 {csv_path.name} 當月舊資料，準備重新爬取。")
     except Exception as e:
         print(f"【錯誤】清除當月資料失敗: {e}")
 
 def append_to_csv(df, csv_path):
-    """將 DataFrame 寫入 CSV (追加模式或新建立)"""
+    """將 DataFrame 寫入 CSV"""
     if not csv_path.exists():
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
         print("   -> 建立新檔案")
@@ -209,7 +229,7 @@ def append_to_csv(df, csv_path):
                 last_date_in_file = existing_df['日期'].iloc[-1]
                 first_date_in_new = df['日期'].iloc[0]
                 
-                # 如果新資料的第一天已經存在於檔案中，則跳過 (粗略檢查)
+                # 如果新資料的第一天已經存在於檔案中，則跳過
                 if first_date_in_new in existing_df['日期'].values:
                     print("   -> 資料可能重複，跳過寫入")
                     return
@@ -220,7 +240,7 @@ def append_to_csv(df, csv_path):
             print(f"【錯誤】寫入失敗: {e}")
 
 def clean_and_sort_csv(csv_path):
-    """最終整理：讀取 CSV，依日期排序並去除重複，重新存檔"""
+    """最終整理：排序並去重"""
     if not csv_path.exists(): return
     try:
         df = pd.read_csv(csv_path, encoding='utf-8-sig')
@@ -231,21 +251,19 @@ def clean_and_sort_csv(csv_path):
         df['日期'] = df['日期'].dt.strftime('%Y/%m/%d')
         
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        # print(f"   (檔案已重新排序整理)") 
     except Exception as e:
         print(f"【錯誤】排序整理失敗: {e}")
 
 # ==========================================================
-# 核心邏輯 (Thread Target) - 負責調度上方函式
+# 核心邏輯 (Thread Target)
 # ==========================================================
 
 def run_crawling_thread(start_btn, stop_btn, stop_event):
     """
     主邏輯控制中心
-    這裡不寫複雜邏輯，只負責呼叫上面的單一功能函式
     """
     print("="*40)
-    print("      股票爬蟲系統啟動 (Pathlib版)      ")
+    print("      股票爬蟲系統啟動 (修正版)      ")
     print("="*40)
 
     # 1. Line 初始化
@@ -262,7 +280,6 @@ def run_crawling_thread(start_btn, stop_btn, stop_event):
 
     # 3. 逐一處理股票
     for idx, code in enumerate(codes, 1):
-        # --- 檢查停止信號 ---
         if stop_event.is_set():
             print("\n*** 使用者強制停止 ***")
             break
@@ -278,33 +295,29 @@ def run_crawling_thread(start_btn, stop_btn, stop_event):
         # 3-2. 計算需爬取的月份
         months_to_crawl = calculate_crawl_months(listing_date)
         if not months_to_crawl:
-            print("   無需爬取月份。")
+            print("   無需爬取月份 (日期範圍外)。")
             continue
 
         # 3-3. 定義存檔路徑
         file_name = f"{code}_{name}_stock.csv"
         save_path = RAW_DATA_DIR / file_name
 
-        # 3-4. 清除檔案中的當月資料 (確保重新爬取當月時不會重複)
+        # 3-4. 清除檔案中的當月資料
         remove_current_month_data(save_path)
 
         # 3-5. 月份迴圈爬取
         for ym in months_to_crawl:
-            # --- 內部迴圈也要檢查停止 ---
             if stop_event.is_set(): 
                 break
             
-            # A. 爬取
             df = fetch_monthly_data(code, ym)
             
-            # B. 存檔
             if df is not None:
                 append_to_csv(df, save_path)
             
-            # C. 休息
             time.sleep(3) # 月份間隔
 
-        # 3-6. 完成該股後，整理檔案 (排序/去重)
+        # 3-6. 完成該股後，整理檔案
         clean_and_sort_csv(save_path)
         
         # 股票間的休息
@@ -318,21 +331,18 @@ def run_crawling_thread(start_btn, stop_btn, stop_event):
     if line_api:
         send_line_message(line_api, line_user_id, msg)
 
-    # 重置按鈕
     _reset_gui_buttons(start_btn, stop_btn)
 
 def _reset_gui_buttons(start_btn, stop_btn):
-    """更新 GUI 按鈕狀態 (需透過 after 在主執行緒執行)"""
+    """更新 GUI 按鈕狀態"""
     root = start_btn.winfo_toplevel()
     root.after(0, lambda: start_btn.config(state=tk.NORMAL, text="開始執行"))
     root.after(0, lambda: stop_btn.config(state=tk.DISABLED))
-
 # ==========================================================
 # GUI 介面設定
 # ==========================================================
 
 class TextRedirector:
-    """將 print 輸出導向到 Text Widget"""
     def __init__(self, widget):
         self.widget = widget
         self.widget.tag_configure("stdout", foreground="black")
@@ -347,8 +357,21 @@ class TextRedirector:
 
 def run_gui():
     root = tk.Tk()
-    root.title("Python Stock Crawler (Pathlib)")
-    root.geometry("600x500")
+    root.title("Python Stock Crawler (V2)")
+    
+    # --- 視窗居中計算 ---
+    window_width = 650
+    window_height = 550
+    
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    
+    center_x = int((screen_width / 2) - (window_width / 2))
+    center_y = int((screen_height / 2) - (window_height / 2))
+    
+    root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
+    # --- 視窗居中計算結束 ---
+
 
     # 文字輸出區
     scrolled_text = scrolledtext.ScrolledText(root, width=70, height=20, font=("Consolas", 10))
@@ -376,6 +399,15 @@ def run_gui():
         stop_event.set()
         btn_stop.config(state=tk.DISABLED, text="停止中...")
 
+    # 新增的離開程式函式
+    def on_exit():
+        print("\n[系統訊息] 程式準備退出...")
+        # 1. 發出停止信號給工作執行緒
+        stop_event.set()
+        # 2. 銷毀主視窗
+        root.destroy()
+
+
     btn_start = tk.Button(btn_frame, text="開始執行", command=on_start, 
                           bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), padx=15)
     btn_start.pack(side=tk.LEFT, padx=10)
@@ -383,9 +415,18 @@ def run_gui():
     btn_stop = tk.Button(btn_frame, text="停止", command=on_stop, 
                          bg="#F44336", fg="white", font=("Arial", 12, "bold"), padx=15, state=tk.DISABLED)
     btn_stop.pack(side=tk.LEFT, padx=10)
+    
+    # 新增的離開按鈕
+    btn_exit = tk.Button(btn_frame, text="離開程式", command=on_exit,
+                         bg="#607D8B", fg="white", font=("Arial", 12, "bold"), padx=15)
+    btn_exit.pack(side=tk.LEFT, padx=10) # 放在最右邊
 
     print(f"系統準備就緒。")
+    print(f"讀取清單路徑: {LIST_FILE_PATH}")
     print(f"資料存檔路徑: {RAW_DATA_DIR}")
+    
+    # 確保關閉視窗時也能觸發 on_exit 邏輯
+    root.protocol("WM_DELETE_WINDOW", on_exit) 
     
     root.mainloop()
 
