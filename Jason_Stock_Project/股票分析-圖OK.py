@@ -1,8 +1,3 @@
-# stock_data_process_flat.py
-# 目的：讀取多個原始 CSV（可能為民國年或西元年），清理、合併、計算 MA5/10/20，輸出 big5 編碼 CSV，並產生近90天 K 線圖。
-# 風格：Pathlib、函式單一功能（函式間不互相呼叫）、讀檔嘗試多編碼、輸出 big5、避免 lambda。
-# 顏色：上漲紅、下跌綠；MA5 紫、MA10 深綠、MA20 黃
-
 import pandas as pd
 from pathlib import Path
 import re
@@ -13,9 +8,10 @@ import mplfinance as mpf
 import matplotlib.pyplot as plt
 
 # 設定（可修改）
-STOCK_CODE = "2330"
-STOCK_NAME = "台積電"
-BASE_RAW_DIR = Path(r"D:\Python_repo\python\Jason_Stock_Analyzer\datas\raw\1_STOCK_DAY")
+STOCK_CODE = "2344"
+STOCK_NAME = "華邦電"
+BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+BASE_RAW_DIR = BASE_DIR / "datas" / "raw" / "1_STOCK_DAY"
 INPUT_DIR = BASE_RAW_DIR / STOCK_CODE
 OUTPUT_DIR = BASE_RAW_DIR.parent  # 與原程式行為一致
 OUTPUT_FILE = f"{STOCK_NAME}_stocks_data.csv"
