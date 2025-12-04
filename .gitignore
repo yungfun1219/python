@@ -1,4 +1,3 @@
 # 忽略專案中所有 .csv 檔案
-*.csv
 *.env
 line_API.env
