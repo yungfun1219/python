@@ -1,5 +1,5 @@
 import pandas as pd
-from pathlib import Path
+import pathlib 
 from datetime import date
 
 def process_trading_days():
@@ -10,7 +10,7 @@ def process_trading_days():
     """
     
     # --- 1. 定義常量和路徑 (使用 Pathlib) ---
-    FILE_PATH = Path(r'D:\Python_repo\python\Jason_Stock_Project\datas\processed\get_holidays\trading_day_2021-2025.csv')
+    FILE_PATH = pathlib.Path(r'D:\Python_repo\python\Jason_Stock_Project\datas\processed\get_holidays\trading_day_2021-2025.csv')
     DATE_COLUMN_NAME = '日期' 
     ENCODINGS_TO_TRY = ['utf-8', 'big5', 'cp950', 'latin-1']
     successful_encoding = None  # 用來儲存成功的編碼器
