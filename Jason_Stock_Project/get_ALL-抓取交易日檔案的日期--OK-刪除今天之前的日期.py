@@ -862,6 +862,6 @@ def run_gui():
 
 if __name__ == '__main__':
     # 確保主輸出目錄存在
-    #ensure_output_directory_exists(BASE_DIR / "datas" / "raw") 
-    #run_gui()
+    ensure_output_directory_exists(BASE_DIR / "datas" / "raw") 
+    run_gui()
     process_trading_days()
