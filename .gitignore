@@ -2,3 +2,5 @@
 *.env
 *.csv
 line_API.env
+*.csv
+*.xlsx
